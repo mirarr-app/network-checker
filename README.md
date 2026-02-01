@@ -1,5 +1,5 @@
 
-# Network Checker - Set of network tools curated for Iran Internet situation.
+# Network Checker - Set of network tools curated for Iran's Internet situation.
 
 Available for Android, Windows and Linux.
 
