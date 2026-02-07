@@ -125,7 +125,7 @@ const List<DnsProvider> defaultDnsProviders = [
     id: 12,
     name: 'DynX DNS Anti-Sanctions',
     description: 'Bypassing the sanction by changing the geolocation for Iranian users',
-    addresses: ['10.139.177.18', '10.139.177.16'],
+    addresses: ['193.24.103.1', '193.24.103.2'],
     dohUrl: null,
     website: 'https://www.dynx.pro',
   ),
