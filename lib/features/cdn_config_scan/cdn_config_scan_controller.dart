@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../core/services/cdn_config_scanner.dart';
 import '../../core/services/xray_binary_service.dart' show XrayBinaryService;
-import '../../core/services/xray_process_manager.dart' show XrayProcessManager, XrayStartupException, PortInUseException;
+import '../../core/services/xray_process_manager.dart' show XrayProcessManager, XrayStartupException;
 
 /// Wizard step enum
 enum CdnScanStep {
@@ -113,7 +113,24 @@ class CdnConfigScanController extends ChangeNotifier {
 
   /// Initialize the controller
   Future<void> initialize() async {
+    _applyDefaultParallelism();
     await checkBinaryStatus();
+  }
+
+  void _applyDefaultParallelism() {
+    final defaultParallel = _defaultParallelCount();
+    if (_scanConfig.concurrentInstances <= 0 ||
+        _scanConfig.concurrentInstances ==
+            const CdnScanConfig().concurrentInstances) {
+      _scanConfig =
+          _scanConfig.copyWith(concurrentInstances: defaultParallel);
+    }
+  }
+
+  int _defaultParallelCount() {
+    final cpuCores = Platform.numberOfProcessors;
+    final base = cpuCores > 0 ? cpuCores : 1;
+    return base * 2;
   }
 
   /// Check if xray binary is installed
@@ -383,8 +400,6 @@ class CdnConfigScanController extends ChangeNotifier {
           _handleScanError(error);
         },
       );
-    } on PortInUseException catch (e) {
-      _handleScanError(e);
     } on XrayStartupException catch (e) {
       _handleScanError(e);
     } catch (e) {
@@ -399,10 +414,7 @@ class CdnConfigScanController extends ChangeNotifier {
     _scanSubscription?.cancel();
     _scanSubscription = null;
     
-    if (error is PortInUseException) {
-      _scanError = 'Port conflict: ${error.message}\n\n'
-          'Please close any applications using these ports or change the base port in scan settings.';
-    } else if (error is XrayStartupException) {
+    if (error is XrayStartupException) {
       _scanError = 'Xray failed to start: ${error.message}\n\n'
           'Please check that your config is valid and try again.';
     } else {

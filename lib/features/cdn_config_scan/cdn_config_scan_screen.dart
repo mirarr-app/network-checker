@@ -1370,6 +1370,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
   late TextEditingController _timeoutController;
   late TextEditingController _testUrlController;
   late TextEditingController _basePortController;
+  int? _parallelCount;
 
   @override
   void initState() {
@@ -1382,10 +1383,13 @@ class _SettingsDialogState extends State<_SettingsDialog> {
         TextEditingController(text: widget.initialConfig.testUrl);
     _basePortController =
         TextEditingController(text: widget.initialConfig.basePort.toString());
+    _instancesController.addListener(_onInstancesChanged);
+    _onInstancesChanged();
   }
 
   @override
   void dispose() {
+    _instancesController.removeListener(_onInstancesChanged);
     _instancesController.dispose();
     _timeoutController.dispose();
     _testUrlController.dispose();
@@ -1393,10 +1397,25 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     super.dispose();
   }
 
+  void _onInstancesChanged() {
+    final parsed = int.tryParse(_instancesController.text);
+    if (parsed == _parallelCount) return;
+    setState(() {
+      _parallelCount = parsed;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final screenWidth = MediaQuery.of(context).size.width;
     final dialogWidth = screenWidth < 400 ? screenWidth * 0.95 : 400.0;
+    final cpuCores = Platform.numberOfProcessors;
+    final baseCores = cpuCores > 0 ? cpuCores : 1;
+    final defaultParallel = baseCores * 2;
+    final warnThreshold = baseCores * 8;
+    final showWarning =
+        _parallelCount != null && _parallelCount! > warnThreshold;
 
     return AlertDialog(
       title: const Text('Scan Settings'),
@@ -1424,11 +1443,21 @@ class _SettingsDialogState extends State<_SettingsDialog> {
               TextField(
                 controller: _instancesController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Concurrent Instances',
-                  helperText: 'Number of parallel xray processes (1-50)',
+                decoration: InputDecoration(
+                  labelText: 'Parallel Tests',
+                  helperText: 'Default: ${defaultParallel} (2 x CPU cores)',
                 ),
               ),
+              if (showWarning) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Warning: Very high parallelism can overload the system.',
+                  style: TextStyle(
+                    color: colorScheme.tertiary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               TextField(
                 controller: _timeoutController,
@@ -1468,7 +1497,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
           onPressed: () {
             final newConfig = CdnScanConfig(
               concurrentInstances:
-                  int.tryParse(_instancesController.text)?.clamp(1, 50) ?? 5,
+                  int.tryParse(_instancesController.text) ?? defaultParallel,
               timeout: Duration(
                   seconds: int.tryParse(_timeoutController.text) ?? 10),
               testUrl: _testUrlController.text.isNotEmpty

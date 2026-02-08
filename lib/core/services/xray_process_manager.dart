@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
@@ -83,12 +84,16 @@ class XrayProcessManager {
   final XrayBinaryService _binaryService;
   final List<XrayInstance> _instances = [];
   final int basePort;
+  final bool enableProcessLogs;
+  final Set<int> _reservedPorts = {};
+  final Random _random = Random.secure();
 
   Directory? _tempConfigDir;
 
   XrayProcessManager({
     XrayBinaryService? binaryService,
     this.basePort = 10808,
+    this.enableProcessLogs = kDebugMode,
   }) : _binaryService = binaryService ?? XrayBinaryService();
 
   /// Get all running instances
@@ -196,33 +201,29 @@ class XrayProcessManager {
     return config;
   }
 
-  /// Check if a port is available
-  Future<bool> _isPortAvailable(int port) async {
-    try {
-      final server = await ServerSocket.bind('127.0.0.1', port);
-      await server.close();
-      return true;
-    } on SocketException {
-      return false;
-    }
-  }
+  int _allocateRandomPort() {
+    const minPort = 10000;
+    const maxPort = 60000;
+    const maxAttempts = 50;
 
-  /// Check all required ports are available before starting
-  Future<List<int>> _checkPortsAvailable(int startPort, int count) async {
-    final usedPorts = <int>[];
-    for (int i = 0; i < count; i++) {
-      final port = startPort + i;
-      if (!await _isPortAvailable(port)) {
-        usedPorts.add(port);
+    for (int attempt = 0; attempt < maxAttempts; attempt++) {
+      final port = minPort + _random.nextInt(maxPort - minPort + 1);
+      if (_reservedPorts.add(port)) {
+        return port;
       }
     }
-    return usedPorts;
+
+    throw StateError('Failed to allocate a random port after $maxAttempts attempts');
   }
 
-  /// Start multiple xray instances
-  Future<void> startInstances(
+  void _releasePort(int port) {
+    _reservedPorts.remove(port);
+  }
+
+  /// Start a single xray instance for the given IP
+  Future<XrayInstance> startInstanceForIp(
     Map<String, dynamic> baseConfig,
-    int count,
+    String ip,
   ) async {
     // Ensure we have xray binary
     final xrayPath = await _binaryService.getXrayBinaryPath();
@@ -230,79 +231,48 @@ class XrayProcessManager {
       throw StateError('Xray binary not found. Please download it first.');
     }
 
-    // Check if all required ports are available BEFORE starting any instances
-    final usedPorts = await _checkPortsAvailable(basePort, count);
-    if (usedPorts.isNotEmpty) {
-      throw PortInUseException(
-        usedPorts.first,
-        'The following ports are already in use: ${usedPorts.join(", ")}. '
-            'Please free these ports or change the base port in settings.',
-      );
-    }
-
     // Create temp directory for configs
     final xrayDir = await _binaryService.getXrayDirectory();
     _tempConfigDir = Directory('${xrayDir.path}/temp_configs');
-    if (await _tempConfigDir!.exists()) {
-      await _tempConfigDir!.delete(recursive: true);
+    if (!await _tempConfigDir!.exists()) {
+      await _tempConfigDir!.create();
     }
-    await _tempConfigDir!.create();
 
-    // Start instances
-    final startedInstances = <XrayInstance>[];
+    final port = _allocateRandomPort();
+
+    // Create config for this instance
+    final instanceConfig = createModifiedConfig(baseConfig, port, ip);
+
+    final configSuffix = '${DateTime.now().microsecondsSinceEpoch}_${_random.nextInt(100000)}';
+    final configPath = '${_tempConfigDir!.path}/config_$configSuffix.json';
+    await File(configPath).writeAsString(json.encode(instanceConfig));
+
     try {
-      for (int i = 0; i < count; i++) {
-        final port = basePort + i;
+      final process = await Process.start(
+        xrayPath,
+        ['-c', configPath],
+        workingDirectory: xrayDir.path,
+      );
 
-        // Create config for this instance (using original address as placeholder)
-        final originalAddress =
-            extractOutboundAddress(baseConfig) ?? 'placeholder';
-        final instanceConfig =
-            createModifiedConfig(baseConfig, port, originalAddress);
+      final instance = XrayInstance(
+        id: _instances.length,
+        port: port,
+        process: process,
+        configPath: configPath,
+        isAvailable: true,
+      );
 
-        // Write config file
-        final configPath = '${_tempConfigDir!.path}/config_$i.json';
-        await File(configPath).writeAsString(json.encode(instanceConfig));
+      // Set up stream listeners and track subscriptions
+      _setupProcessListeners(instance);
 
-        // Start xray process
-        final process = await Process.start(
-          xrayPath,
-          ['-c', configPath],
-          workingDirectory: xrayDir.path,
-        );
-
-        final instance = XrayInstance(
-          id: i,
-          port: port,
-          process: process,
-          configPath: configPath,
-          isAvailable: true,
-        );
-
-        // Set up stream listeners and track subscriptions
-        _setupProcessListeners(instance);
-
-        startedInstances.add(instance);
-        _instances.add(instance);
-      }
-
-      // Wait for all ports to be ready with better error detection
-      await _waitForAllInstancesReady(startedInstances);
+      _instances.add(instance);
+      return instance;
     } catch (e) {
-      // Clean up any started instances if something fails
-      for (final instance in startedInstances) {
-        await _killInstance(instance);
-      }
-      _instances.clear();
-
-      // Clean up temp configs
-      if (_tempConfigDir != null && await _tempConfigDir!.exists()) {
-        try {
-          await _tempConfigDir!.delete(recursive: true);
-        } catch (_) {}
-      }
-
-      rethrow;
+      _releasePort(port);
+      throw XrayStartupException(
+        'Failed to start xray: $e',
+        port: port,
+      );
     }
   }
 
@@ -310,7 +280,11 @@ class XrayProcessManager {
   void _setupProcessListeners(XrayInstance instance) {
     // Close stdin immediately - we don't need to write to xray
     instance.process.stdin.close();
-    
+
+    if (!enableProcessLogs) {
+      return;
+    }
+
     // Only attach to streams if not already attached
     if (instance._streamsAttached) return;
     instance._streamsAttached = true;
@@ -342,99 +316,6 @@ class XrayProcessManager {
       },
       cancelOnError: false,
     );
-  }
-
-  /// Wait for all instances to be ready with proper error detection
-  Future<void> _waitForAllInstancesReady(List<XrayInstance> instances) async {
-    const timeout = Duration(seconds: 10);
-    final deadline = DateTime.now().add(timeout);
-
-    for (final instance in instances) {
-      final remainingTime = deadline.difference(DateTime.now());
-      if (remainingTime.isNegative) {
-        throw XrayStartupException(
-          'Timeout waiting for xray instances to start',
-          instanceId: instance.id,
-          port: instance.port,
-        );
-      }
-
-      await _waitForPortOrError(instance, remainingTime);
-    }
-  }
-
-  /// Wait for a port to be available or detect if the process has exited with an error
-  Future<void> _waitForPortOrError(
-      XrayInstance instance, Duration timeout) async {
-    final deadline = DateTime.now().add(timeout);
-    Socket? socket;
-
-    while (DateTime.now().isBefore(deadline)) {
-      // Check if process has exited (error condition)
-      final exitCodeFuture = instance.process.exitCode;
-      final checkResult = await Future.any([
-        exitCodeFuture.then((code) => ('exited', code)),
-        Future.delayed(const Duration(milliseconds: 100))
-            .then((_) => ('timeout', -1)),
-      ]);
-
-      if (checkResult.$1 == 'exited') {
-        final exitCode = checkResult.$2;
-        final errors = instance.errorLog.join('\n');
-        throw XrayStartupException(
-          'Xray process exited with code $exitCode. Errors:\n$errors',
-          instanceId: instance.id,
-          port: instance.port,
-        );
-      }
-
-      // Try to connect to the port
-      try {
-        socket = await Socket.connect(
-          '127.0.0.1',
-          instance.port,
-          timeout: const Duration(milliseconds: 200),
-        );
-        socket.destroy(); // Use destroy() to immediately release FD
-        socket = null;
-        return; // Port is ready
-      } on SocketException {
-        // Port not ready yet, continue waiting
-      } finally {
-        // Ensure socket is cleaned up
-        socket?.destroy();
-        socket = null;
-      }
-    }
-
-    // Timeout reached - check for any errors in the log
-    final errors = instance.errorLog;
-    if (errors.isNotEmpty) {
-      throw XrayStartupException(
-        'Port ${instance.port} did not become ready. Xray errors:\n${errors.join('\n')}',
-        instanceId: instance.id,
-        port: instance.port,
-      );
-    }
-
-    throw XrayStartupException(
-      'Port ${instance.port} did not become ready within timeout',
-      instanceId: instance.id,
-      port: instance.port,
-    );
-  }
-
-  /// Wait for a port to be released (not in use by any process)
-  Future<bool> _waitForPortRelease(int port, Duration timeout) async {
-    final deadline = DateTime.now().add(timeout);
-    
-    while (DateTime.now().isBefore(deadline)) {
-      if (await _isPortAvailable(port)) {
-        return true;
-      }
-      await Future.delayed(const Duration(milliseconds: 50));
-    }
-    return false;
   }
 
   /// Kill a process and wait for it to fully terminate, ensuring streams are drained
@@ -470,151 +351,27 @@ class XrayProcessManager {
     await Future.delayed(const Duration(milliseconds: 10));
   }
 
-  /// Update an instance's config to use a new IP address
-  Future<void> updateInstanceAddress(
-      XrayInstance instance, String newAddress, Map<String, dynamic> baseConfig) async {
-    // Create new config with the new address
-    final newConfig = createModifiedConfig(baseConfig, instance.port, newAddress);
-
-    // Write updated config
-    await File(instance.configPath).writeAsString(json.encode(newConfig));
-
-    // Terminate the process properly - this will cancel subscriptions after process exits
-    await _terminateProcess(instance.process, instance: instance);
-
-    // Wait for the port to be released by the OS
-    final portReleased = await _waitForPortRelease(
-      instance.port, 
-      const Duration(seconds: 3),
-    );
-    
-    if (!portReleased) {
-      debugPrint('Warning: Port ${instance.port} not released after timeout, trying anyway...');
-    }
-
-    final xrayPath = await _binaryService.getXrayBinaryPath();
-    final xrayDir = await _binaryService.getXrayDirectory();
-
-    // Retry starting the process with backoff
-    Process? newProcess;
-    Exception? lastError;
-    
-    for (int attempt = 0; attempt < 3; attempt++) {
-      try {
-        newProcess = await Process.start(
-          xrayPath,
-          ['-c', instance.configPath],
-          workingDirectory: xrayDir.path,
-        );
-        break; // Success, exit retry loop
-      } catch (e) {
-        lastError = e as Exception;
-        debugPrint('Failed to start xray (attempt ${attempt + 1}/3): $e');
-        // Wait before retry with increasing delay
-        await Future.delayed(Duration(milliseconds: 100 * (attempt + 1)));
-      }
-    }
-
-    if (newProcess == null) {
-      instance.isAvailable = false;
-      throw XrayStartupException(
-        'Failed to start xray after 3 attempts: $lastError',
-        instanceId: instance.id,
-        port: instance.port,
-      );
-    }
-
-    // Update instance with new process
-    instance.process = newProcess;
-    instance.clearErrors();
-    instance._streamsAttached = false; // Reset so new streams get attached
-
-    // Set up new listeners
-    _setupProcessListeners(instance);
-
-    // Wait for the port to be ready with error detection and retry
-    try {
-      await _waitForPortOrErrorWithRetry(instance, const Duration(seconds: 5));
-    } catch (e) {
-      // If the instance fails to start, mark it as unavailable but don't throw
-      // This allows the scan to continue with remaining instances
-      instance.isAvailable = false;
-      debugPrint('Instance ${instance.id} failed to restart: $e');
-      rethrow;
-    }
-  }
-
-  /// Wait for port to be ready with retry logic
-  Future<void> _waitForPortOrErrorWithRetry(
-      XrayInstance instance, Duration timeout) async {
-    final deadline = DateTime.now().add(timeout);
-    Socket? socket;
-    int connectAttempts = 0;
-
-    while (DateTime.now().isBefore(deadline)) {
-      // Check if process has exited (error condition)
-      final exitCodeFuture = instance.process.exitCode;
-      final checkResult = await Future.any([
-        exitCodeFuture.then((code) => ('exited', code)),
-        Future.delayed(const Duration(milliseconds: 100))
-            .then((_) => ('timeout', -1)),
-      ]);
-
-      if (checkResult.$1 == 'exited') {
-        final exitCode = checkResult.$2;
-        final errors = instance.errorLog.join('\n');
-        throw XrayStartupException(
-          'Xray process exited with code $exitCode. Errors:\n$errors',
-          instanceId: instance.id,
-          port: instance.port,
-        );
-      }
-
-      // Try to connect to the port
-      try {
-        socket = await Socket.connect(
-          '127.0.0.1',
-          instance.port,
-          timeout: const Duration(milliseconds: 300),
-        );
-        socket.destroy(); // Use destroy() to immediately release FD
-        socket = null;
-        return; // Port is ready
-      } on SocketException {
-        connectAttempts++;
-        // Port not ready yet, continue waiting
-      } finally {
-        // Ensure socket is cleaned up
-        socket?.destroy();
-        socket = null;
-      }
-    }
-
-    // Timeout reached - check for any errors in the log
-    final errors = instance.errorLog;
-    if (errors.isNotEmpty) {
-      throw XrayStartupException(
-        'Port ${instance.port} did not become ready after $connectAttempts attempts. Xray errors:\n${errors.join('\n')}',
-        instanceId: instance.id,
-        port: instance.port,
-      );
-    }
-
-    throw XrayStartupException(
-      'Port ${instance.port} did not become ready within timeout ($connectAttempts connection attempts)',
-      instanceId: instance.id,
-      port: instance.port,
-    );
-  }
-
   /// Kill a single instance and clean up its resources
   Future<void> _killInstance(XrayInstance instance) async {
     try {
       // Terminate the process - this will also cancel subscriptions after process exits
       await _terminateProcess(instance.process, instance: instance);
+      _releasePort(instance.port);
+      try {
+        final configFile = File(instance.configPath);
+        if (await configFile.exists()) {
+          await configFile.delete();
+        }
+      } catch (_) {}
     } catch (e) {
       debugPrint('Error killing xray instance ${instance.id}: $e');
     }
+  }
+
+  /// Stop a single instance and remove it from tracking
+  Future<void> stopInstance(XrayInstance instance) async {
+    await _killInstance(instance);
+    _instances.remove(instance);
   }
 
   /// Get an available instance for testing
