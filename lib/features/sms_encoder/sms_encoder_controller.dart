@@ -38,33 +38,33 @@ class SmsEncoderController extends ChangeNotifier {
     'x': 'ق',
     'y': 'ک',
     'z': 'گ',
-    // Uppercase letters map to same Persian letters
-    'A': 'ا',
-    'B': 'ب',
-    'C': 'پ',
-    'D': 'ت',
-    'E': 'ث',
-    'F': 'ج',
-    'G': 'چ',
-    'H': 'ح',
-    'I': 'خ',
-    'J': 'د',
-    'K': 'ذ',
-    'L': 'ر',
-    'M': 'ز',
-    'N': 'ژ',
-    'O': 'س',
-    'P': 'ش',
-    'Q': 'ص',
-    'R': 'ض',
-    'S': 'ط',
-    'T': 'ظ',
-    'U': 'ع',
-    'V': 'غ',
-    'W': 'ف',
-    'X': 'ق',
-    'Y': 'ک',
-    'Z': 'گ',
+    // Uppercase letters (assign different Persian characters as needed)
+    'A': 'آ',
+    'B': 'ّ',
+    'C': 'َ',
+    'D': 'ِ',
+    'E': 'ُ',
+    'F': 'ً',
+    'G': 'ٍ',
+    'H': 'ٌ',
+    'I': 'ْ',
+    'J': 'ة',
+    'K': 'أ',
+    'L': 'إ',
+    'M': 'ي',
+    'N': 'ئ',
+    'O': 'ؤ',
+    'P': 'ء',
+    'Q': 'ٔ',
+    'R': 'ٰ',
+    'S': 'ٓ',
+    'T': 'ك',
+    'U': '(',
+    'V': ')',
+    'W': '×',
+    'X': '*',
+    'Y': '{',
+    'Z': '}',
     // Special characters (remaining 6 Persian letters)
     '"': 'ل',
     ':': 'م',
@@ -88,15 +88,15 @@ class SmsEncoderController extends ChangeNotifier {
     '9': '۹',
   };
 
-  // Reverse mapping for decoding (prefers lowercase for letters)
+  // Reverse mapping for decoding (preserves case when uppercase maps to different Persian)
   static final Map<String, String> _decodeMapFixed = () {
     final map = <String, String>{};
     for (final entry in _encodeMap.entries) {
       final persian = entry.value;
       final english = entry.key;
-      // Only add if not already in map (keeps first occurrence which is lowercase)
+      // Only add if not already in map (keeps first occurrence per Persian character)
       if (!map.containsKey(persian)) {
-        map[persian] = english.toLowerCase();
+        map[persian] = english;
       }
     }
     // Override with special characters (they don't have case)
@@ -142,12 +142,11 @@ class SmsEncoderController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Encodes English text to Persian characters
+  /// Encodes English text to Persian characters (uppercase and lowercase use separate map entries)
   String _encode(String input) {
     final buffer = StringBuffer();
-    final lowerInput = input.toLowerCase();
-    for (int i = 0; i < lowerInput.length; i++) {
-      final char = lowerInput[i];
+    for (int i = 0; i < input.length; i++) {
+      final char = input[i];
       buffer.write(_encodeMap[char] ?? char);
     }
     return buffer.toString();
