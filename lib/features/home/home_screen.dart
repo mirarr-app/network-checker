@@ -56,7 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
     const NavigationDestination(
       icon: Icon(Icons.router_outlined),
       selectedIcon: Icon(Icons.router),
-      label: 'Edge IPs',
+      label: 'Edge',
     ),
     const NavigationDestination(
       icon: Icon(Icons.vpn_key_outlined),
@@ -96,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
     const NavigationRailDestination(
       icon: Icon(Icons.router_outlined),
       selectedIcon: Icon(Icons.router),
-      label: Text('Edge IPs'),
+      label: Text('Edge'),
     ),
     const NavigationRailDestination(
       icon: Icon(Icons.vpn_key_outlined),
