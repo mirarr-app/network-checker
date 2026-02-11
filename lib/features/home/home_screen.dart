@@ -2,7 +2,10 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/app_config.dart';
+import '../../core/services/version_check_service.dart';
 import '../../core/widgets/custom_title_bar.dart';
 import '../about/about_screen.dart';
 import '../cdn_config_scan/cdn_config_scan_screen.dart';
@@ -23,6 +26,74 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _versionCheckDone = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdate());
+  }
+
+  Future<void> _checkForUpdate() async {
+    if (_versionCheckDone || !mounted) return;
+    _versionCheckDone = true;
+    final latest = await checkForUpdate(appVersion);
+    if (!mounted) return;
+    if (latest != null) {
+      _showUpdateDialog(latest);
+    }
+  }
+
+  Future<void> _showUpdateDialog(String latestVersion) async {
+    final context = this.context;
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.system_update, color: Colors.amber),
+            SizedBox(width: 8),
+            Text('Update available'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'A new version of Network Checker is available.',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Current: $appVersion  →  Latest: $latestVersion',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontFamily: 'monospace',
+                  ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Later'),
+          ),
+          FilledButton.icon(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              final uri = Uri.parse(releasesPageUrl);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+            icon: const Icon(Icons.open_in_new, size: 18),
+            label: const Text('Open releases'),
+          ),
+        ],
+      ),
+    );
+  }
 
   // CDN Scan is available on desktop (Linux/Windows) and Android
   static final bool _showCdnScan = Platform.isLinux || Platform.isWindows || Platform.isAndroid;
