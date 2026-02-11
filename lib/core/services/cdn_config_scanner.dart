@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_curl/flutter_curl.dart' as curl;
 
 import 'xray_binary_service.dart';
 import 'xray_process_manager.dart';
@@ -101,6 +101,7 @@ class CdnConfigScanner {
   final CdnScanConfig config;
 
   XrayProcessManager? _processManager;
+  curl.Client? _curlClient;
   bool _isScanning = false;
   bool _shouldStop = false;
 
@@ -196,7 +197,7 @@ class CdnConfigScanner {
   }
 
   /// Test connection through SOCKS5 proxy.
-  /// Uses curl on desktop (Linux/Windows) and native Dart sockets on Android.
+  /// Uses shell curl on desktop (Linux/Windows) and libcurl via flutter_curl on Android.
   Future<CdnScanResult> _testWithSocks5Proxy(String ip, int proxyPort) async {
     if (Platform.isAndroid) {
       return _testWithSocks5ProxyDart(ip, proxyPort);
@@ -276,186 +277,65 @@ class CdnConfigScanner {
     }
   }
 
-  /// Test connection through SOCKS5 proxy using native Dart sockets (Android).
-  /// Performs SOCKS5 handshake, optional TLS upgrade, and HTTP request.
+  /// Test connection through SOCKS5 proxy using flutter_curl / libcurl (Android).
+  /// Follows the exact same logic as the desktop curl command version.
   Future<CdnScanResult> _testWithSocks5ProxyDart(String ip, int proxyPort) async {
-    final stopwatch = Stopwatch()..start();
-    Socket? socket;
-
     try {
-      final uri = Uri.parse(config.testUrl);
-      final host = uri.host;
-      final isHttps = uri.scheme == 'https';
-      final targetPort = uri.hasPort
-          ? uri.port
-          : (isHttps ? 443 : 80);
-      final path = uri.path.isEmpty
-          ? '/'
-          : (uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path);
+      assert(_curlClient != null, 'curl client must be initialized before testing');
 
-      if (kDebugMode) debugPrint('[SOCKS5] Connecting to proxy 127.0.0.1:$proxyPort for IP=$ip');
+      final stopwatch = Stopwatch()..start();
 
-      // 1. Connect to the local SOCKS5 proxy (xray instance)
-      socket = await Socket.connect(
-        InternetAddress.loopbackIPv4,
-        proxyPort,
-        timeout: config.timeout,
-      );
-      if (kDebugMode) debugPrint('[SOCKS5] Connected to proxy');
-
-      // Set up buffered reading from the socket stream
-      final buffer = <int>[];
-      Completer<void>? dataReady;
-      bool socketDone = false;
-      Object? socketError;
-
-      final sub = socket.listen(
-        (data) {
-          buffer.addAll(data);
-          dataReady?.complete();
-          dataReady = null;
-        },
-        onError: (e) {
-          if (kDebugMode) debugPrint('[SOCKS5] Socket error: $e');
-          socketError = e;
-          dataReady?.completeError(e);
-          dataReady = null;
-        },
-        onDone: () {
-          if (kDebugMode) debugPrint('[SOCKS5] Socket done (closed by remote)');
-          socketDone = true;
-          dataReady?.complete();
-          dataReady = null;
-        },
-      );
-
-      // Helper: read exactly [n] bytes from the buffered stream
-      Future<List<int>> readExactly(int n) async {
-        while (buffer.length < n) {
-          if (socketDone) throw const SocketException('Socket closed during SOCKS5 handshake');
-          if (socketError != null) throw socketError!;
-          dataReady = Completer<void>();
-          await dataReady!.future.timeout(config.timeout);
-        }
-        final result = List<int>.from(buffer.sublist(0, n));
-        buffer.removeRange(0, n);
-        return result;
-      }
-
-      // 2. SOCKS5 greeting: VER=5, NMETHODS=1, METHOD=NO_AUTH
-      if (kDebugMode) debugPrint('[SOCKS5] Sending greeting...');
-      socket.add([0x05, 0x01, 0x00]);
-      await socket.flush();
-
-      final greetResp = await readExactly(2);
-      if (kDebugMode) debugPrint('[SOCKS5] Greeting response: [${greetResp[0]}, ${greetResp[1]}]');
-      if (greetResp[0] != 0x05 || greetResp[1] != 0x00) {
-        throw Exception('SOCKS5 auth negotiation failed (got [${greetResp[0]}, ${greetResp[1]}])');
-      }
-
-      // 3. SOCKS5 CONNECT request: VER, CMD=CONNECT, RSV, ATYP=DOMAIN
-      if (kDebugMode) debugPrint('[SOCKS5] Sending CONNECT to $host:$targetPort');
-      final hostBytes = utf8.encode(host);
-      socket.add([
-        0x05, 0x01, 0x00, 0x03,
-        hostBytes.length, ...hostBytes,
-        (targetPort >> 8) & 0xFF, targetPort & 0xFF,
-      ]);
-      await socket.flush();
-
-      // Read CONNECT response header (4 bytes: VER, REP, RSV, ATYP)
-      final connResp = await readExactly(4);
-      if (kDebugMode) debugPrint('[SOCKS5] CONNECT response: [${connResp.join(', ')}] (REP=${connResp[1]}, ATYP=${connResp[3]})');
-      if (connResp[1] != 0x00) {
-        final repCodes = {
-          0x01: 'general SOCKS server failure',
-          0x02: 'connection not allowed by ruleset',
-          0x03: 'network unreachable',
-          0x04: 'host unreachable',
-          0x05: 'connection refused',
-          0x06: 'TTL expired',
-          0x07: 'command not supported',
-          0x08: 'address type not supported',
-        };
-        final reason = repCodes[connResp[1]] ?? 'unknown';
-        throw Exception('SOCKS5 CONNECT failed: code ${connResp[1]} ($reason)');
-      }
-
-      // Skip the bound address based on address type
-      switch (connResp[3]) {
-        case 0x01: // IPv4: 4 bytes addr + 2 bytes port
-          await readExactly(6);
-        case 0x03: // Domain: 1 byte len + domain + 2 bytes port
-          final domLen = await readExactly(1);
-          await readExactly(domLen[0] + 2);
-        case 0x04: // IPv6: 16 bytes addr + 2 bytes port
-          await readExactly(18);
-      }
-      if (kDebugMode) debugPrint('[SOCKS5] CONNECT handshake complete');
-
-      // 4. Pause (not cancel!) the stream subscription before TLS upgrade.
-      // Cancelling a single-subscription stream triggers onCancel which tears
-      // down the socket's internal RawSocket listener, making it unusable for
-      // SecureSocket.secure(). Pausing keeps the internals alive so
-      // SecureSocket.secure() can detach the raw socket properly.
-      sub.pause();
-
-      Socket httpSocket;
-      if (isHttps) {
-        if (kDebugMode) debugPrint('[SOCKS5] Upgrading to TLS for host=$host...');
-        try {
-          httpSocket = await SecureSocket.secure(
-            socket,
-            host: host,
-            onBadCertificate: (_) => true,
-          ).timeout(config.timeout);
-          if (kDebugMode) debugPrint('[SOCKS5] TLS upgrade successful');
-        } catch (e) {
-          if (kDebugMode) debugPrint('[SOCKS5] TLS upgrade FAILED: $e');
-          rethrow;
-        }
-      } else {
-        // For plain HTTP, resume the subscription so we can read the response
-        // via the stream in the await-for loop below.
-        sub.resume();
-        httpSocket = socket;
-      }
-
-      // 5. Send HTTP request
-      final httpReq = 'GET $path HTTP/1.1\r\nHost: $host\r\nConnection: close\r\n\r\n';
-      if (kDebugMode) debugPrint('[SOCKS5] Sending HTTP request: GET $path -> $host');
-      httpSocket.write(httpReq);
-      await httpSocket.flush();
-
-      // 6. Read response until we get the status line
-      final respBuffer = StringBuffer();
-      await for (final chunk in httpSocket.timeout(config.timeout)) {
-        respBuffer.write(utf8.decode(chunk, allowMalformed: true));
-        if (respBuffer.toString().contains('\r\n')) break;
-      }
+      final response = await _curlClient!.send(curl.Request(
+        method: 'GET',
+        url: config.testUrl,
+        proxy: 'socks5h://127.0.0.1:$proxyPort',
+        verifySSL: false,
+        connectTimeout: config.timeout,
+        timeout: config.timeout + const Duration(seconds: 2),
+      )).timeout(config.timeout + const Duration(seconds: 5));
 
       stopwatch.stop();
       final timeMs = stopwatch.elapsedMilliseconds.toDouble();
-      final responseStr = respBuffer.toString();
-      final statusMatch = RegExp(r'HTTP/[\d.]+ (\d+)').firstMatch(responseStr);
-      final statusCode = int.tryParse(statusMatch?.group(1) ?? '') ?? 0;
-      if (kDebugMode) debugPrint('[SOCKS5] Status=$statusCode, latency=${timeMs.toStringAsFixed(0)}ms');
 
-      if (statusCode == 204 || (statusCode >= 200 && statusCode < 300)) {
-        return CdnScanResult(ip: ip, success: true, latencyMs: timeMs);
+      // Check for curl-level errors (equivalent to curl exit code != 0)
+      if (response.errorCode != null && response.errorCode != 0) {
+        final errorMsg = (response.errorMessage?.isNotEmpty == true)
+            ? response.errorMessage!
+            : 'curl error code ${response.errorCode}';
+        return CdnScanResult(
+          ip: ip,
+          success: false,
+          errorMessage: errorMsg,
+        );
       }
-      return CdnScanResult(ip: ip, success: false, errorMessage: 'HTTP $statusCode');
-    } on TimeoutException catch (e) {
-      if (kDebugMode) debugPrint('[SOCKS5] TIMEOUT for IP=$ip after ${stopwatch.elapsedMilliseconds}ms: $e');
-      return CdnScanResult(ip: ip, success: false, errorMessage: 'Connection timed out');
+
+      // Parse status code – same logic as desktop curl version
+      final statusCode = response.statusCode;
+      if (statusCode == 204 || (statusCode >= 200 && statusCode < 300)) {
+        return CdnScanResult(
+          ip: ip,
+          success: true,
+          latencyMs: timeMs,
+        );
+      } else {
+        return CdnScanResult(
+          ip: ip,
+          success: false,
+          errorMessage: 'HTTP $statusCode',
+        );
+      }
+    } on TimeoutException {
+      return CdnScanResult(
+        ip: ip,
+        success: false,
+        errorMessage: 'Connection timed out',
+      );
     } catch (e) {
-      if (kDebugMode) debugPrint('[SOCKS5] ERROR for IP=$ip: $e');
-      return CdnScanResult(ip: ip, success: false, errorMessage: e.toString());
-    } finally {
-      stopwatch.stop();
-      try {
-        socket?.destroy();
-      } catch (_) {}
+      return CdnScanResult(
+        ip: ip,
+        success: false,
+        errorMessage: e.toString(),
+      );
     }
   }
 
@@ -493,6 +373,15 @@ class CdnConfigScanner {
         basePort: config.basePort,
         enableProcessLogs: config.enableXrayLogs,
       );
+
+      // Initialize curl client for Android (uses libcurl instead of shell curl)
+      if (Platform.isAndroid) {
+        _curlClient = curl.Client(
+          verifySSL: false,
+          verbose: kDebugMode,
+        );
+        await _curlClient!.init();
+      }
 
       final ipQueue = List<String>.from(ips);
       int ipIndex = 0;
@@ -629,6 +518,13 @@ class CdnConfigScanner {
     if (_processManager != null) {
       await _processManager!.stopAll();
       _processManager = null;
+    }
+    // Dispose curl client (Android)
+    if (_curlClient != null) {
+      try {
+        _curlClient!.dispose();
+      } catch (_) {}
+      _curlClient = null;
     }
   }
 

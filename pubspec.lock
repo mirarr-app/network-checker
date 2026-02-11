@@ -278,6 +278,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.5.2"
+  flutter_curl:
+    dependency: "direct main"
+    description:
+      name: flutter_curl
+      sha256: "88c20cd03c1e0700f8208e4df7e3a7cd226ce51ac3e0ab7869ae9fc08f8a96e2"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.7.0"
   flutter_lints:
     dependency: "direct dev"
     description:

@@ -35,6 +35,7 @@ dependencies:
   file_picker: ^8.0.0+1      # For config.json file selection
   archive: ^3.6.1            # For extracting zip files
   shared_preferences: ^2.3.3 # For storing selected xray version
+  flutter_curl: ^0.7.0
 
 dev_dependencies:
   flutter_test:
