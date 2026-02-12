@@ -50,8 +50,6 @@ Scan for accessible Cloudflare Edge IPs. Inspired by [CF Scan Tolid Melli](https
 ### Vless Config Modifier
 Replace the IP address in a vless config with other ips from a list or ip ranges and get all the vless configs back. Inspired by [v2ray config modifier](https://github.com/seramo/v2ray-config-modifier)
 
-## Desktop Only Features
-
 ### CDN Xray Scanner
 Scan CDN IP ranges using Xray core and your own json config. Inspired by the GOAT, [Morteza Bashsiz Scanner](https://github.com/MortezaBashsiz/CFScanner)
 
