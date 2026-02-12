@@ -52,6 +52,7 @@ Replace the IP address in a vless config with other ips from a list or ip ranges
 
 ### CDN Xray Scanner
 Scan CDN IP ranges using Xray core and your own json config. Inspired by the GOAT, [Morteza Bashsiz Scanner](https://github.com/MortezaBashsiz/CFScanner)
+In order to prepare your json configuration for scanning [read this](https://github.com/mirarr-app/network-checker/blob/main/get_json_for_cdn_scan.md)
 
 ## Android Only Features
 
