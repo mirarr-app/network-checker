@@ -52,7 +52,6 @@
 ### ویرایشگر کانفیگ Vless
 جایگزینی آدرس IP در کانفیگ vless با IP های دیگر از یک لیست یا بازه IP و دریافت تمام کانفیگ‌های vless. الهام گرفته از [v2ray config modifier](https://github.com/seramo/v2ray-config-modifier)
 
-## ویژگی‌های مخصوص دسکتاپ
 
 ### اسکنر CDN Xray
 اسکن بازه‌های IP سی‌دی‌ان با استفاده از هسته Xray و کانفیگ json شخصی شما. الهام گرفته از بزرگ، [Morteza Bashsiz Scanner](https://github.com/MortezaBashsiz/CFScanner)
