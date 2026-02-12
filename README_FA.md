@@ -55,7 +55,7 @@
 
 ### اسکنر CDN Xray
 اسکن بازه‌های IP سی‌دی‌ان با استفاده از هسته Xray و کانفیگ json شخصی شما. الهام گرفته از بزرگ، [Morteza Bashsiz Scanner](https://github.com/MortezaBashsiz/CFScanner)
-
+برای گرفتن json از کانفیگ خود برای اسکن این مطلب را [مطالعه کنید](https://github.com/mirarr-app/network-checker/edit/main/get_json_for_cdn_scan_fa.md)
 ## ویژگی‌های مخصوص اندروید
 
 ### رمزگذار کانفیگ برای پیامک
