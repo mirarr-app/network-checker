@@ -47,6 +47,9 @@ Test to check what Iranian datacenters resolve dns requests to specific domains.
 ### Edge IP Checker
 Scan for accessible Cloudflare Edge IPs. Inspired by [CF Scan Tolid Melli](https://github.com/AghaFarokh/CF-Scan-TolidMelli)
 
+#### If you're scanning a lot of IPs on Linux run this command before launching the app, it will go away after a reboot.
+`ulimit -S -c unlimited -d unlimited -f unlimited -i unlimited -l unlimited -m unlimited -n 65535 -q unlimited -s unlimited -t unlimited -u 65535 -v unlimited -x unlimited`
+
 ### Vless Config Modifier
 Replace the IP address in a vless config with other ips from a list or ip ranges and get all the vless configs back. Inspired by [v2ray config modifier](https://github.com/seramo/v2ray-config-modifier)
 
