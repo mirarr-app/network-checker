@@ -17,6 +17,7 @@ import '../sms_encoder/sms_encoder_screen.dart';
 import '../vless_config_modifier/vless_config_modifier_screen.dart';
 import '../netlify_generator/netlify_generator_screen.dart';
 import '../akamai_scan/akamai_scan_screen.dart';
+import '../sni_spoof_check/sni_spoof_check_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -111,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
     const DnsHunterScreen(),
     const EdgeIpCheckerScreen(),
     const AkamaiScanScreen(),
+    const SniSpoofCheckScreen(),
     const VlessConfigModifierScreen(),
     const NetlifyGeneratorScreen(),
     if (_showSmsEncoder) const SmsEncoderScreen(),
@@ -145,6 +147,11 @@ class _HomeScreenState extends State<HomeScreen> {
       icon: Icon(Icons.cloud_sync_outlined),
       selectedIcon: Icon(Icons.cloud_sync),
       label: Text('Akamai'),
+    ),
+    const NavigationRailDestination(
+      icon: Icon(Icons.fingerprint_outlined),
+      selectedIcon: Icon(Icons.fingerprint),
+      label: Text('SNI Check'),
     ),
     const NavigationRailDestination(
       icon: Icon(Icons.vpn_key_outlined),
@@ -247,6 +254,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _DrawerItem(icon: Icons.radar, label: 'Hunter', index: index++),
       _DrawerItem(icon: Icons.router, label: 'Edge', index: index++),
       _DrawerItem(icon: Icons.cloud_sync, label: 'Akamai', index: index++),
+      _DrawerItem(icon: Icons.fingerprint, label: 'SNI Check', index: index++),
       _DrawerItem(icon: Icons.vpn_key, label: 'VLESS', index: index++),
       _DrawerItem(icon: Icons.bolt, label: 'Netlify', index: index++),
       if (_showSmsEncoder) _DrawerItem(icon: Icons.sms, label: 'SMS', index: index++),
