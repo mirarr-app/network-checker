@@ -521,13 +521,29 @@ class _EdgeIpCheckerScreenState extends State<EdgeIpCheckerScreen> {
                 ),
                 const Spacer(),
                 if (filteredIps.isNotEmpty)
-                  TextButton.icon(
-                    onPressed: () => _copyFilteredIps(context, filteredIps),
-                    icon: const Icon(Icons.copy, size: 16),
-                    label: Text('Copy ${filteredIps.length > 10 ? "Top 10" : "All"}'),
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (filteredIps.length > 10) ...[
+                        TextButton.icon(
+                          onPressed: () => _copyFilteredIps(context, filteredIps),
+                          icon: const Icon(Icons.copy, size: 16),
+                          label: const Text('Copy Top 10'),
+                          style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      TextButton.icon(
+                        onPressed: () => _copyFilteredIps(context, filteredIps, copyAll: true),
+                        icon: const Icon(Icons.copy_all, size: 16),
+                        label: const Text('Copy All'),
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    ],
                   ),
               ],
             ),
@@ -715,8 +731,8 @@ class _EdgeIpCheckerScreenState extends State<EdgeIpCheckerScreen> {
     );
   }
   
-  void _copyFilteredIps(BuildContext context, List<EdgeIpResult> ips) {
-    final toCopy = ips.take(10).toList();
+  void _copyFilteredIps(BuildContext context, List<EdgeIpResult> ips, {bool copyAll = false}) {
+    final toCopy = copyAll ? ips : ips.take(10).toList();
     final text = toCopy.map((ip) => ip.ip).join('\n');
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(

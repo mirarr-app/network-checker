@@ -1095,62 +1095,113 @@ class _ScanningStep extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final results = controller.results;
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: results.length,
-      itemBuilder: (context, index) {
-        final result = results[index];
-        final latencyColor = _getLatencyColor(colorScheme, result.latencyMs);
-
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          child: ListTile(
-            leading: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: latencyColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Text(
-                  '${index + 1}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: latencyColor,
-                  ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header with stats and copy buttons
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Row(
+            children: [
+              Text(
+                'Results (${results.length})',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
-            ),
-            title: Text(
-              result.ip,
-              style: const TextStyle(
-                fontFamily: 'monospace',
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            subtitle: Text(
-              '${result.latencyMs?.toStringAsFixed(0) ?? 'N/A'}ms',
-              style: TextStyle(
-                color: latencyColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            trailing: IconButton(
-              icon: const Icon(Icons.copy),
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: result.ip));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Copied: ${result.ip}'),
-                    duration: const Duration(seconds: 1),
-                  ),
-                );
-              },
-            ),
+              const Spacer(),
+              if (results.isNotEmpty)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (results.length > 10) ...[
+                      TextButton.icon(
+                        onPressed: () => _copyResultsIps(context, results),
+                        icon: const Icon(Icons.copy, size: 16),
+                        label: const Text('Copy Top 10'),
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    TextButton.icon(
+                      onPressed: () => _copyResultsIps(context, results, copyAll: true),
+                      icon: const Icon(Icons.copy_all, size: 16),
+                      label: const Text('Copy All'),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
           ),
-        );
-      },
+        ),
+
+        // Results list
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            itemCount: results.length,
+            itemBuilder: (context, index) {
+              final result = results[index];
+              final latencyColor = _getLatencyColor(colorScheme, result.latencyMs);
+
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
+                  leading: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: latencyColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${index + 1}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: latencyColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                  title: Text(
+                    result.ip,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${result.latencyMs?.toStringAsFixed(0) ?? 'N/A'}ms',
+                    style: TextStyle(
+                      color: latencyColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.copy),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: result.ip));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Copied: ${result.ip}'),
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -1159,6 +1210,15 @@ class _ScanningStep extends StatelessWidget {
     if (latencyMs < 500) return colorScheme.success;
     if (latencyMs < 1000) return Colors.orange;
     return colorScheme.error;
+  }
+
+  void _copyResultsIps(BuildContext context, List<CdnScanResult> ips, {bool copyAll = false}) {
+    final toCopy = copyAll ? ips : ips.take(10).toList();
+    final text = toCopy.map((ip) => ip.ip).join('\n');
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Copied ${toCopy.length} IPs')),
+    );
   }
 }
 

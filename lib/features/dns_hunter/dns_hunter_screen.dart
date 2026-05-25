@@ -624,27 +624,73 @@ class _DnsHunterScreenState extends State<DnsHunterScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: () {
-                            final topIps = controller.cleanResults
-                                .take(10)
-                                .map((result) => result.ip)
-                                .join('\n');
-                            Clipboard.setData(ClipboardData(text: topIps));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Top 10 DNS IPs copied to clipboard'),
-                                behavior: SnackBarBehavior.floating,
-                                duration: Duration(seconds: 2),
+                      if (controller.cleanResults.length > 10) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: () {
+                                  final topIps = controller.cleanResults
+                                      .take(10)
+                                      .map((result) => result.ip)
+                                      .join('\n');
+                                  Clipboard.setData(ClipboardData(text: topIps));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Top 10 DNS IPs copied to clipboard'),
+                                      behavior: SnackBarBehavior.floating,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.copy),
+                                label: const Text('Copy Top 10 IPs'),
                               ),
-                            );
-                          },
-                          icon: const Icon(Icons.copy),
-                          label: const Text('Copy Top 10 IPs'),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: () {
+                                  final allIps = controller.cleanResults
+                                      .map((result) => result.ip)
+                                      .join('\n');
+                                  Clipboard.setData(ClipboardData(text: allIps));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('All ${controller.cleanResults.length} DNS IPs copied to clipboard'),
+                                      behavior: SnackBarBehavior.floating,
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.copy_all),
+                                label: const Text('Copy All IPs'),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
+                      ] else ...[
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () {
+                              final allIps = controller.cleanResults
+                                  .map((result) => result.ip)
+                                  .join('\n');
+                              Clipboard.setData(ClipboardData(text: allIps));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('All DNS IPs copied to clipboard'),
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.copy_all),
+                            label: const Text('Copy All IPs'),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ).animate().fadeIn().scale(begin: const Offset(0.95, 0.95)),
