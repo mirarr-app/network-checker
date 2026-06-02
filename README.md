@@ -1,7 +1,7 @@
 # Network Checker - Set of network tools curated for Iran's Internet situation.
 
 
-# Network Checker - مجموعه ابزارهای شبکه برای وضعیت اینترنت ایران
+## Network Checker - مجموعه ابزارهای شبکه برای وضعیت اینترنت ایران
 
 
 برای اندروید، ویندوز و لینوکس در دسترس است.
