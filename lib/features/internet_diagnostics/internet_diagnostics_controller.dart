@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../../core/services/internet_diagnostics_service.dart';
 import '../../core/services/cdn_ips.dart';
+import '../../core/services/protocol_accessibility_service.dart';
 
 /// Current state status of the diagnostic engine
 enum DiagnosticEngineStatus { idle, running, completed }
@@ -47,6 +49,12 @@ class InternetDiagnosticsController extends ChangeNotifier {
   // Social Media Reachability State
   List<SocialMediaResult> _socialMediaResults = [];
   bool _isScanningSocialMedia = false;
+
+  // Protocol Accessibility State
+  bool _protocolAccessibilitySuccess = false;
+  List<ProtocolAccessibilitySummary> _protocolAccessibilitySummaries = [];
+  bool _isScanningProtocols = false;
+  String _protocolStepName = '';
 
   // List of major targets to verify
   static const List<Map<String, String>> targetWebsites = [
@@ -134,7 +142,69 @@ class InternetDiagnosticsController extends ChangeNotifier {
 
   // Track progress
   int _completedTestsCount = 0;
-  static const int totalTestsCount = 11; // 11 progressive sequence tasks
+  static const int totalTestsCount = 12; // 12 progressive sequence tasks
+
+  // Targets for Protocol Accessibility Checks
+  static const List<String> protocolHttpDomains = [
+    'google.com',
+    'cloudflare.com',
+    'wikipedia.org',
+    'github.com',
+  ];
+
+  static const List<String> protocolHttpsDomains = [
+    'google.com',
+    'cloudflare.com',
+    'wikipedia.org',
+    'github.com',
+  ];
+
+  static const List<String> protocolUdpDomains = [
+    'dns.google',
+    'one.one.one.one',
+    'time.google.com',
+    'time.windows.com',
+  ];
+
+  static const List<String> protocolHttp3Domains = [
+    'google.com',
+    'cloudflare.com',
+    'speedtest.net',
+    'dash.cloudflare.com',
+  ];
+
+  static const List<String> protocolWebsocketUrls = [
+    'wss://ws.postman-echo.com/raw',
+    'wss://javascript.info/article/websocket/demo/hello',
+    'wss://echo.websocket.events',
+  ];
+
+  static const List<String> protocolDohDomains = [
+    'dns.google',
+    'cloudflare-dns.com',
+    'dns.quad9.net',
+  ];
+
+  static const List<String> protocolDotDomains = [
+    'dns.google',
+    'one.one.one.one',
+    'dns.quad9.net',
+  ];
+
+  static const List<String> protocolPingDomains = [
+    'google.com',
+    'cloudflare.com',
+    'github.com',
+    'wikipedia.org',
+  ];
+
+  // Getters
+  bool get protocolAccessibilitySuccess => _protocolAccessibilitySuccess;
+  List<ProtocolAccessibilitySummary> get protocolAccessibilitySummaries => _protocolAccessibilitySummaries;
+  bool get isScanningProtocols => _isScanningProtocols;
+  String get protocolStepName => _protocolStepName;
+  int get supportedProtocolsCount => _protocolAccessibilitySummaries.where((s) => s.isSupported).length;
+  int get blockedProtocolsCount => _protocolAccessibilitySummaries.where((s) => s.isBlocked).length;
 
   // Getters
   DiagnosticEngineStatus get engineStatus => _engineStatus;
@@ -518,8 +588,108 @@ class InternetDiagnosticsController extends ChangeNotifier {
     }
 
     _isScanningSocialMedia = false;
+    notifyListeners();
+
+    // 12. Protocol Accessibility Scan Step
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    if (runId != _currentRunId) return;
+    _isScanningProtocols = true;
+    _completedTestsCount++;
+    notifyListeners();
+
+    final testTimeout = const Duration(seconds: 4);
+    final List<ProtocolAccessibilitySummary> summaries = [];
+
+    Future<ProtocolAccessibilitySummary> runProtocolStep(
+      String name,
+      String description,
+      List<String> targets,
+      Future<ProtocolTestResult> Function(String, Duration) tester,
+    ) async {
+      _protocolStepName = 'Testing $name...';
+      notifyListeners();
+      final futures = targets.map((domain) => tester(domain, testTimeout)).toList();
+      final results = await Future.wait(futures);
+      return ProtocolAccessibilitySummary(
+        protocolName: name,
+        isSupported: results.any((r) => r.success),
+        isBlocked: false, // updated below
+        results: results,
+        description: description,
+      );
+    }
+
+    try {
+      summaries.add(await runProtocolStep(
+        'TCP HTTP',
+        'Plain HTTP connectivity on TCP port 80',
+        protocolHttpDomains,
+        ProtocolAccessibilityService.testHttpDomain,
+      ));
+      if (runId != _currentRunId) return;
+
+      summaries.add(await runProtocolStep(
+        'TCP HTTPS',
+        'Secure HTTPS connectivity on TCP port 443',
+        protocolHttpsDomains,
+        ProtocolAccessibilityService.testHttpsDomain,
+      ));
+      if (runId != _currentRunId) return;
+
+      summaries.add(await runProtocolStep(
+        'UDP Connectivity',
+        'Generic UDP traffic via NTP and DNS',
+        protocolUdpDomains,
+        ProtocolAccessibilityService.testUdpDomain,
+      ));
+      if (runId != _currentRunId) return;
+
+      summaries.add(await runProtocolStep(
+        'HTTP/3 (QUIC)',
+        'Forced HTTP/3 over QUIC on UDP port 443',
+        protocolHttp3Domains,
+        ProtocolAccessibilityService.testHttp3Domain,
+      ));
+      if (runId != _currentRunId) return;
+
+      summaries.add(await runProtocolStep(
+        'WebSockets',
+        'WebSocket handshake and duplex connection',
+        protocolWebsocketUrls,
+        ProtocolAccessibilityService.testWebSocketDomain,
+      ));
+      if (runId != _currentRunId) return;
+
+      summaries.add(await runProtocolStep(
+        'DNS-over-HTTPS',
+        'DNS queries routed securely inside HTTPS request',
+        protocolDohDomains,
+        ProtocolAccessibilityService.testDoHDomain,
+      ));
+      if (runId != _currentRunId) return;
+
+      summaries.add(await runProtocolStep(
+        'DNS-over-TLS',
+        'DNS queries secure wrapping in TLS port 853',
+        protocolDotDomains,
+        ProtocolAccessibilityService.testDoTDomain,
+      ));
+      if (runId != _currentRunId) return;
+
+      summaries.add(await runProtocolStep(
+        'ICMP Ping',
+        'Standard ICMP Echo ping reachability',
+        protocolPingDomains,
+        ProtocolAccessibilityService.testIcmpDomain,
+      ));
+    } catch (e) {
+      debugPrint('Protocol Accessibility scan error: $e');
+    }
+
+    if (runId != _currentRunId) return;
 
     // Compute Overall Internet Access
+    final hasProtocolSupport = summaries.any((s) => s.isSupported);
     _overallInternetAccess =
         _dnsSuccess ||
         _ipv4Success ||
@@ -535,7 +705,24 @@ class InternetDiagnosticsController extends ChangeNotifier {
           (s) =>
               s.status == SocialMediaStatus.accessible ||
               s.status == SocialMediaStatus.partial,
-        );
+        ) ||
+        hasProtocolSupport;
+
+    // Calculate blocked status for protocols based on network online status
+    final online = _overallInternetAccess || _httpsSuccess || _dnsSuccess;
+    _protocolAccessibilitySummaries = summaries.map((s) {
+      final isBlocked = !s.isSupported && online;
+      return ProtocolAccessibilitySummary(
+        protocolName: s.protocolName,
+        isSupported: s.isSupported,
+        isBlocked: isBlocked,
+        results: s.results,
+        description: s.description,
+      );
+    }).toList();
+
+    _protocolAccessibilitySuccess = hasProtocolSupport;
+    _isScanningProtocols = false;
 
     _engineStatus = DiagnosticEngineStatus.completed;
     notifyListeners();
@@ -573,6 +760,11 @@ class InternetDiagnosticsController extends ChangeNotifier {
     _isScanningCdns = false;
     _socialMediaResults = [];
     _isScanningSocialMedia = false;
+
+    _protocolAccessibilitySuccess = false;
+    _protocolAccessibilitySummaries = [];
+    _isScanningProtocols = false;
+    _protocolStepName = '';
 
     notifyListeners();
   }

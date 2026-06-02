@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/services/internet_diagnostics_service.dart';
+import '../../core/services/protocol_accessibility_service.dart';
 import 'internet_diagnostics_controller.dart';
 
 class InternetDiagnosticsScreen extends StatelessWidget {
@@ -82,6 +83,11 @@ class InternetDiagnosticsScreen extends StatelessWidget {
 
                 // 8. Social Media Accessibility Dashboard
                 _buildSocialMediaAccessibilityDashboard(context, controller),
+
+                const SizedBox(height: 16),
+
+                // 9. Protocol Accessibility Dashboard
+                _buildProtocolAccessibilityDashboard(context, controller),
 
                 const SizedBox(height: 24),
 
@@ -422,6 +428,36 @@ class InternetDiagnosticsScreen extends StatelessWidget {
                               )
                             : null,
                       ).animate().fadeIn(delay: 1050.ms).slideY(begin: 0.1, end: 0),
+
+                      const SizedBox(height: 12),
+
+                      // Protocol Accessibility checklist card
+                      _DiagnosticCheckCard(
+                        title: 'Protocol Accessibility Scan',
+                        description:
+                            'Checks ports and standard protocol capabilities (TCP/UDP/QUIC/WS/DoH/DoT/Ping)',
+                        iconData: Icons.network_locked_rounded,
+                        isPending:
+                            controller.isIdle ||
+                            (controller.isRunning &&
+                                controller.completedTestsCount < 12),
+                        isRunning: controller.isScanningProtocols,
+                        isSuccess: controller.isCompleted
+                            ? controller.protocolAccessibilitySuccess
+                            : (controller.completedTestsCount >= 12
+                                  ? controller.protocolAccessibilitySuccess
+                                  : false),
+                        result: controller.isCompleted
+                            ? DiagnosticTestResult(
+                                name: 'Protocol Accessibility Scan',
+                                success: controller.protocolAccessibilitySuccess,
+                                message:
+                                    '${controller.supportedProtocolsCount} of 8 protocols supported, ${controller.blockedProtocolsCount} blocked',
+                                details:
+                                    'Protocol Scan results:\nSupported: ${controller.supportedProtocolsCount}\nBlocked: ${controller.blockedProtocolsCount}\nDetails of protocol support and individual domains are visible in the Protocol Accessibility section above.',
+                              )
+                            : null,
+                      ).animate().fadeIn(delay: 1100.ms).slideY(begin: 0.1, end: 0),
                     ],
                   ),
                 ),
@@ -2154,6 +2190,482 @@ class InternetDiagnosticsScreen extends StatelessWidget {
       }
     } catch (_) {}
     return 'Resolving...';
+  }
+
+  Widget _buildProtocolAccessibilityDashboard(
+    BuildContext context,
+    InternetDiagnosticsController controller,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    if (controller.isIdle ||
+        (controller.isRunning && controller.completedTestsCount < 11)) {
+      return const SizedBox.shrink();
+    }
+
+    final isScanning = controller.isScanningProtocols;
+    final summaries = controller.protocolAccessibilitySummaries;
+    final totalCount = 8;
+    final scannedCount = summaries.length;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Card(
+        color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.5),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+            width: 1,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'PROTOCOL ACCESSIBILITY SCAN',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.5,
+                            color: colorScheme.onSurfaceVariant.withValues(
+                              alpha: 0.8,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          isScanning
+                              ? 'Checking ports and standard protocol capabilities...'
+                              : 'Scan complete: $scannedCount of $totalCount protocols verified',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant.withValues(
+                              alpha: 0.6,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (isScanning)
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: controller.blockedProtocolsCount > 0
+                            ? colorScheme.error.withValues(alpha: 0.12)
+                            : colorScheme.success.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        controller.blockedProtocolsCount > 0 ? 'BLOCKED DETECTED' : 'SECURE / CLEAN',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: controller.blockedProtocolsCount > 0 ? colorScheme.error : colorScheme.success,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (summaries.isNotEmpty) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildStatBubble(
+                      context,
+                      label: 'Supported',
+                      value: '${controller.supportedProtocolsCount}/$totalCount',
+                      color: colorScheme.success,
+                      bgColor: colorScheme.successContainer,
+                    ),
+                    _buildStatBubble(
+                      context,
+                      label: 'Blocked',
+                      value: '${controller.blockedProtocolsCount}',
+                      color: controller.blockedProtocolsCount == 0
+                          ? colorScheme.success
+                          : colorScheme.error,
+                      bgColor: controller.blockedProtocolsCount == 0
+                          ? colorScheme.successContainer
+                          : colorScheme.errorContainer,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final double maxWidth = constraints.maxWidth;
+                    final int crossAxisCount = (maxWidth / 220).floor().clamp(2, 6);
+                    final double itemWidth = (maxWidth - (crossAxisCount - 1) * 10) / crossAxisCount;
+                    final double childAspectRatio = itemWidth / 85;
+
+                    return GridView.builder(
+                      physics: const NeverScrollableScrollPhysics(),
+                      shrinkWrap: true,
+                      itemCount: summaries.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        childAspectRatio: childAspectRatio,
+                      ),
+                      itemBuilder: (context, index) {
+                        final summary = summaries[index];
+                        return _ProtocolSummaryGridCard(
+                          summary: summary,
+                          index: index,
+                        );
+                      },
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProtocolSummaryGridCard extends StatelessWidget {
+  final ProtocolAccessibilitySummary summary;
+  final int index;
+
+  const _ProtocolSummaryGridCard({
+    required this.summary,
+    required this.index,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    Color badgeBgColor = colorScheme.surfaceContainerHighest;
+    Color badgeTextColor = colorScheme.onSurfaceVariant;
+    Color cardBorderColor = colorScheme.outlineVariant.withValues(alpha: 0.15);
+    IconData leadingIcon = Icons.help_outline_rounded;
+    Color leadingIconColor = colorScheme.onSurfaceVariant;
+
+    if (summary.isSupported) {
+      badgeBgColor = colorScheme.successContainer;
+      badgeTextColor = colorScheme.success;
+      cardBorderColor = colorScheme.success.withValues(alpha: 0.15);
+      leadingIcon = Icons.check_circle_rounded;
+      leadingIconColor = colorScheme.success;
+    } else if (summary.isBlocked) {
+      badgeBgColor = colorScheme.errorContainer;
+      badgeTextColor = colorScheme.error;
+      cardBorderColor = colorScheme.error.withValues(alpha: 0.15);
+      leadingIcon = Icons.lock_rounded;
+      leadingIconColor = colorScheme.error;
+    } else {
+      badgeBgColor = colorScheme.warningContainer;
+      badgeTextColor = colorScheme.warning;
+      cardBorderColor = colorScheme.warning.withValues(alpha: 0.15);
+      leadingIcon = Icons.warning_amber_rounded;
+      leadingIconColor = colorScheme.warning;
+    }
+
+    // Determine custom icon based on protocol name
+    switch (summary.protocolName) {
+      case 'TCP HTTP':
+        leadingIcon = Icons.http_rounded;
+        break;
+      case 'TCP HTTPS':
+        leadingIcon = Icons.lock_outline_rounded;
+        break;
+      case 'UDP Connectivity':
+        leadingIcon = Icons.compare_arrows_rounded;
+        break;
+      case 'HTTP/3 (QUIC)':
+        leadingIcon = Icons.bolt_rounded;
+        break;
+      case 'WebSockets':
+        leadingIcon = Icons.swap_calls_rounded;
+        break;
+      case 'DNS-over-HTTPS':
+        leadingIcon = Icons.security_rounded;
+        break;
+      case 'DNS-over-TLS':
+        leadingIcon = Icons.enhanced_encryption_rounded;
+        break;
+      case 'ICMP Ping':
+        leadingIcon = Icons.network_ping_rounded;
+        break;
+    }
+
+    return Card(
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: cardBorderColor, width: 1),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _showProtocolDetailsSheet(context, summary),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: leadingIconColor.withValues(alpha: 0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      leadingIcon,
+                      size: 16,
+                      color: leadingIconColor,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      summary.protocolName,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: badgeBgColor,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      summary.isSupported
+                          ? 'SUPPORTED'
+                          : (summary.isBlocked ? 'BLOCKED' : 'FAILED'),
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: badgeTextColor,
+                      ),
+                    ),
+                  ),
+                  if (summary.isSupported && summary.averageLatencyMs > 0)
+                    Text(
+                      '${summary.averageLatencyMs}ms',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        color: colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.7,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showProtocolDetailsSheet(BuildContext context, ProtocolAccessibilitySummary summary) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: colorScheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(2.5),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Text(
+                    summary.protocolName,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: summary.isSupported
+                          ? colorScheme.successContainer
+                          : (summary.isBlocked
+                              ? colorScheme.errorContainer
+                              : colorScheme.warningContainer),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      summary.isSupported
+                          ? 'SUPPORTED'
+                          : (summary.isBlocked ? 'BLOCKED' : 'FAILED'),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: summary.isSupported
+                            ? colorScheme.success
+                            : (summary.isBlocked ? colorScheme.error : colorScheme.warning),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                summary.description,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 16),
+              Text(
+                'Target Domains Checklist:',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.5,
+                ),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: summary.results.length,
+                  itemBuilder: (context, idx) {
+                    final result = summary.results[idx];
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: result.success 
+                              ? colorScheme.success.withValues(alpha: 0.1)
+                              : colorScheme.error.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                result.success ? Icons.check_rounded : Icons.close_rounded,
+                                size: 16,
+                                color: result.success ? colorScheme.success : colorScheme.error,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  result.domain,
+                                  style: const TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              if (result.success && result.latencyMs != null)
+                                Text(
+                                  '${result.latencyMs}ms',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontFamily: 'monospace',
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          if (result.errorMessage != null || result.details != null) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: isDark ? Colors.black.withValues(alpha: 0.4) : Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                result.errorMessage ?? result.details ?? '',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: 'monospace',
+                                  color: result.success 
+                                      ? colorScheme.onSurfaceVariant
+                                      : colorScheme.error,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 

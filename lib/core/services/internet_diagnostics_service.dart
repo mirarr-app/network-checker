@@ -724,16 +724,17 @@ class InternetDiagnosticsService {
     Socket? rawSocket;
     SecureSocket? socket;
     try {
+      final ipToConnect = resolvedIps.isNotEmpty ? resolvedIps.first : target.domain;
       rawSocket = await Socket.connect(
-        target.domain,
+        ipToConnect,
         443,
-        timeout: const Duration(seconds: 8),
-      );
+        timeout: const Duration(seconds: 4),
+      ).timeout(const Duration(seconds: 4));
       socket = await SecureSocket.secure(
         rawSocket,
         host: target.domain,
         supportedProtocols: const ['h2', 'http/1.1'],
-      ).timeout(const Duration(seconds: 8));
+      ).timeout(const Duration(seconds: 4));
 
       stopwatch.stop();
       handshakeMs = stopwatch.elapsedMilliseconds;
@@ -840,7 +841,7 @@ class InternetDiagnosticsService {
     final stopwatch = Stopwatch()..start();
 
     try {
-      final response = await http.get(uri).timeout(const Duration(seconds: 8));
+      final response = await http.get(uri).timeout(const Duration(seconds: 4));
       stopwatch.stop();
 
       if (response.statusCode >= 400) {
