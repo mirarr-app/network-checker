@@ -192,12 +192,31 @@ List<String> _generateConfigsIsolate(_GenerationInput input) {
   
   for (final configMap in input.configs) {
     final uuid = configMap['uuid'] as String;
-    final port = configMap['port'] as int;
+    final defaultPort = configMap['port'] as int;
     final queryString = configMap['queryString'] as String;
     final fragment = configMap['fragment'] as String;
     
     for (final ip in input.ips) {
-      results.add('vless://$uuid@$ip:$port?$queryString#$fragment');
+      String targetIp = ip;
+      int targetPort = defaultPort;
+      
+      final colonIndex = ip.lastIndexOf(':');
+      if (colonIndex != -1) {
+        final firstColonIndex = ip.indexOf(':');
+        final hasMultipleColons = firstColonIndex != colonIndex;
+        final hasBrackets = ip.startsWith('[') && ip.contains(']');
+        
+        if (!hasMultipleColons || hasBrackets) {
+          final portStr = ip.substring(colonIndex + 1);
+          final parsedPort = int.tryParse(portStr);
+          if (parsedPort != null) {
+            targetIp = ip.substring(0, colonIndex);
+            targetPort = parsedPort;
+          }
+        }
+      }
+      
+      results.add('vless://$uuid@$targetIp:$targetPort?$queryString#$fragment');
     }
   }
   

@@ -72,7 +72,7 @@ class _VlessConfigModifierScreenState extends State<VlessConfigModifierScreen> {
                 _buildInputCard(
                   context,
                   title: 'IP Addresses',
-                  hint: 'Enter IPs (one per line)\n\nSupports:\n• Single IPs: 1.1.1.1\n• IP ranges: 1.1.1.1-1.1.1.10\n• CIDR notation: 192.168.1.0/24',
+                  hint: 'Enter IPs (one per line)\n\nSupports:\n• Single IPs: 1.1.1.1\n• Custom ports: 1.1.1.1:2096\n• IP ranges: 1.1.1.1-1.1.1.10\n• CIDR notation: 192.168.1.0/24',
                   controller: _ipsController,
                   onChanged: controller.setIpsInput,
                   icon: Icons.dns_outlined,
