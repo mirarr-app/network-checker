@@ -359,6 +359,15 @@ class _EdgeIpCheckerScreenState extends State<EdgeIpCheckerScreen> {
                     icon: const Icon(Icons.bolt, size: 18),
                     label: const Text('Vercel'),
                   ),
+                  FilledButton.tonalIcon(
+                    onPressed: () {
+                      _inputController.text = fastlyIpRanges;
+                      controller.updateInput(fastlyIpRanges);
+                      controller.updateConfig(testDomain: 'fastly.com');
+                    },
+                    icon: const Icon(Icons.speed, size: 18),
+                    label: const Text('Fastly'),
+                  ),
                   if (controller.parsedIpCount > 0)
                     IconButton.filledTonal(
                       onPressed: () => _shuffleInputLines(_inputController, controller),
@@ -1218,6 +1227,18 @@ class _IpInputDialogState extends State<_IpInputDialog> {
                         },
                         icon: const Icon(Icons.bolt, size: 18),
                         label: const Text('Vercel'),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: () {
+                          _textController.text = fastlyIpRanges;
+                          widget.controller.updateConfig(testDomain: 'fastly.com');
+                          _dialogDebounceTimer?.cancel();
+                          setState(() {
+                            _dialogParsedIpCount = EdgeIpScanner.parseIpInput(fastlyIpRanges).length;
+                          });
+                        },
+                        icon: const Icon(Icons.speed, size: 18),
+                        label: const Text('Fastly'),
                       ),
                       IconButton.filledTonal(
                         onPressed: () {
