@@ -348,7 +348,7 @@ class _EdgeIpCheckerScreenState extends State<EdgeIpCheckerScreen> {
                       controller.updateConfig(testDomain: 'chatgpt.com');
                     },
                     icon: const Icon(Icons.cloud_outlined, size: 18),
-                    label: const Text('Load CF IPs'),
+                    label: const Text('CF'),
                   ),
                   FilledButton.tonalIcon(
                     onPressed: () {
@@ -357,7 +357,7 @@ class _EdgeIpCheckerScreenState extends State<EdgeIpCheckerScreen> {
                       controller.updateConfig(testDomain: 'vercel.com');
                     },
                     icon: const Icon(Icons.bolt, size: 18),
-                    label: const Text('Load Vercel IPs'),
+                    label: const Text('Vercel'),
                   ),
                   if (controller.parsedIpCount > 0)
                     IconButton.filledTonal(
@@ -1205,7 +1205,7 @@ class _IpInputDialogState extends State<_IpInputDialog> {
                           });
                         },
                         icon: const Icon(Icons.cloud_outlined, size: 18),
-                        label: const Text('Load CF IPs'),
+                        label: const Text('CF'),
                       ),
                       FilledButton.tonalIcon(
                         onPressed: () {
@@ -1217,7 +1217,7 @@ class _IpInputDialogState extends State<_IpInputDialog> {
                           });
                         },
                         icon: const Icon(Icons.bolt, size: 18),
-                        label: const Text('Load Vercel IPs'),
+                        label: const Text('Vercel'),
                       ),
                       IconButton.filledTonal(
                         onPressed: () {
