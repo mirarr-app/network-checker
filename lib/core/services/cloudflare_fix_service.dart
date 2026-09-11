@@ -143,13 +143,13 @@ class CloudflareFixService {
     String cipherSuites = defaultCipherSuites,
     bool enableFinalmask = true,
     String frag1Packets = 'tlshello',
-    List<String> frag1Lengths = const ['5', '94', '1'],
+    List<String> frag1Lengths = const ['0', '104', '1'],
     List<String> frag1Delays = const ['0'],
     String frag1MaxSplit = '0',
     String frag2Packets = '1-1',
-    List<String> frag2Lengths = const ['109', '1'],
+    List<String> frag2Lengths = const ['114', '1'],
     List<String> frag2Delays = const ['1'],
-    String frag2MaxSplit = '355',
+    String frag2MaxSplit = '11',
   }) {
     final trimmed = shareLink.trim();
     if (trimmed.isEmpty) {

@@ -34,7 +34,7 @@ class CloudflareFixController extends ChangeNotifier {
   String _frag1Packets = 'tlshello';
   String get frag1Packets => _frag1Packets;
 
-  String _frag1Lengths = '5,94,1';
+  String _frag1Lengths = '0,104,1';
   String get frag1Lengths => _frag1Lengths;
 
   String _frag1Delays = '0';
@@ -46,13 +46,13 @@ class CloudflareFixController extends ChangeNotifier {
   String _frag2Packets = '1-1';
   String get frag2Packets => _frag2Packets;
 
-  String _frag2Lengths = '109,1';
+  String _frag2Lengths = '114,1';
   String get frag2Lengths => _frag2Lengths;
 
   String _frag2Delays = '1';
   String get frag2Delays => _frag2Delays;
 
-  String _frag2MaxSplit = '355';
+  String _frag2MaxSplit = '11';
   String get frag2MaxSplit => _frag2MaxSplit;
 
   List<CloudflareFixResult> _results = [];
@@ -165,13 +165,13 @@ class CloudflareFixController extends ChangeNotifier {
     _cipherSuites = CloudflareFixService.defaultCipherSuites;
     _enableFinalmask = true;
     _frag1Packets = 'tlshello';
-    _frag1Lengths = '5,94,1';
+    _frag1Lengths = '0,104,1';
     _frag1Delays = '0';
     _frag1MaxSplit = '0';
     _frag2Packets = '1-1';
-    _frag2Lengths = '109,1';
+    _frag2Lengths = '114,1';
     _frag2Delays = '1';
-    _frag2MaxSplit = '355';
+    _frag2MaxSplit = '11';
     notifyListeners();
   }
 
@@ -226,11 +226,11 @@ class CloudflareFixController extends ChangeNotifier {
               : CloudflareFixService.defaultCipherSuites,
           enableFinalmask: _enableFinalmask,
           frag1Packets: _frag1Packets,
-          frag1Lengths: f1Lengths.isNotEmpty ? f1Lengths : ['5', '94', '1'],
+          frag1Lengths: f1Lengths.isNotEmpty ? f1Lengths : ['0', '104', '1'],
           frag1Delays: f1Delays.isNotEmpty ? f1Delays : ['0'],
           frag1MaxSplit: _frag1MaxSplit,
           frag2Packets: _frag2Packets,
-          frag2Lengths: f2Lengths.isNotEmpty ? f2Lengths : ['109', '1'],
+          frag2Lengths: f2Lengths.isNotEmpty ? f2Lengths : ['114', '1'],
           frag2Delays: f2Delays.isNotEmpty ? f2Delays : ['1'],
           frag2MaxSplit: _frag2MaxSplit,
         );

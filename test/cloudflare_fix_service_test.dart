@@ -43,7 +43,13 @@ void main() {
       final finalmask = streamSettings['finalmask'];
       expect(finalmask['tcp'].length, 2);
       expect(finalmask['tcp'][0]['settings']['packets'], 'tlshello');
+      expect(finalmask['tcp'][0]['settings']['lengths'], ['0', '104', '1']);
+      expect(finalmask['tcp'][0]['settings']['delays'], ['0']);
+      expect(finalmask['tcp'][0]['settings']['maxSplit'], '0');
       expect(finalmask['tcp'][1]['settings']['packets'], '1-1');
+      expect(finalmask['tcp'][1]['settings']['lengths'], ['114', '1']);
+      expect(finalmask['tcp'][1]['settings']['delays'], ['1']);
+      expect(finalmask['tcp'][1]['settings']['maxSplit'], '11');
 
       final wsSettings = streamSettings['wsSettings'];
       expect(wsSettings['host'], 'example.com');

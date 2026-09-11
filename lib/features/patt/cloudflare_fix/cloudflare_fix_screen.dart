@@ -664,7 +664,7 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                             controller: _frag1LengthsController,
                             decoration: const InputDecoration(
                               labelText: 'Lengths',
-                              hintText: '5,94,1',
+                              hintText: '0,104,1',
                               isDense: true,
                               border: OutlineInputBorder(),
                             ),
@@ -723,7 +723,7 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                             controller: _frag1LengthsController,
                             decoration: const InputDecoration(
                               labelText: 'Lengths',
-                              hintText: '5,94,1',
+                              hintText: '0,104,1',
                               isDense: true,
                               border: OutlineInputBorder(),
                             ),
@@ -777,7 +777,7 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                             controller: _frag2LengthsController,
                             decoration: const InputDecoration(
                               labelText: 'Lengths',
-                              hintText: '109,1',
+                              hintText: '114,1',
                               isDense: true,
                               border: OutlineInputBorder(),
                             ),
@@ -807,7 +807,7 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                             controller: _frag2MaxSplitController,
                             decoration: const InputDecoration(
                               labelText: 'MaxSplit',
-                              hintText: '355',
+                              hintText: '11',
                               isDense: true,
                               border: OutlineInputBorder(),
                             ),
@@ -836,7 +836,7 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                             controller: _frag2LengthsController,
                             decoration: const InputDecoration(
                               labelText: 'Lengths',
-                              hintText: '109,1',
+                              hintText: '114,1',
                               isDense: true,
                               border: OutlineInputBorder(),
                             ),
@@ -862,7 +862,7 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                             controller: _frag2MaxSplitController,
                             decoration: const InputDecoration(
                               labelText: 'MaxSplit',
-                              hintText: '355',
+                              hintText: '11',
                               isDense: true,
                               border: OutlineInputBorder(),
                             ),
