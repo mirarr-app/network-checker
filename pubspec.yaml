@@ -39,6 +39,8 @@ dependencies:
   archive: ^3.6.1 # For extracting zip files
   shared_preferences: ^2.3.3 # For storing selected xray version
   flutter_curl: ^0.9.0
+  cryptography: ^2.9.0
+  http2: ^2.3.1
 
 dev_dependencies:
   flutter_test:

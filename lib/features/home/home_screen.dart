@@ -13,6 +13,7 @@ import '../dns_hunter/dns_hunter_screen.dart';
 import '../dns_scanner/dns_scanner_screen.dart';
 import '../domain_checker/domain_checker_screen.dart';
 import '../edge_ip_checker/edge_ip_checker_screen.dart';
+import '../masque_scout/masque_scout_screen.dart';
 import '../sms_encoder/sms_encoder_screen.dart';
 import '../vless_config_modifier/vless_config_modifier_screen.dart';
 import '../chain/chain_screen.dart';
@@ -115,6 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
     const DnsScannerScreen(),
     const DnsHunterScreen(),
     const EdgeIpCheckerScreen(),
+    const MasqueScoutScreen(),
     const AkamaiScanScreen(),
     const SniSpoofCheckScreen(),
     const CloudflareFixScreen(),
@@ -159,6 +161,12 @@ class _HomeScreenState extends State<HomeScreen> {
         label: 'Edge',
         icon: Icons.router_outlined,
         selectedIcon: Icons.router,
+        index: idx++,
+      ),
+      _NavItem(
+        label: 'Masque Scout',
+        icon: Icons.explore_outlined,
+        selectedIcon: Icons.explore,
         index: idx++,
       ),
       _NavItem(
