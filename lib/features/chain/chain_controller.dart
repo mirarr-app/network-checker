@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import '../../core/services/proxy_parser_service.dart';
 
 class ChainController extends ChangeNotifier {
@@ -82,7 +81,7 @@ class ChainController extends ChangeNotifier {
     final validLinks = _hopLinks.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 
     if (validLinks.length < 2) {
-      _errorMessage = 'Please provide at least 2 valid proxy links (Entry and Exit).';
+      _errorMessage = 'Please provide at least 2 valid proxy links or Xray JSON configs (Entry and Exit).';
       _generatedJson = null;
       notifyListeners();
       return;

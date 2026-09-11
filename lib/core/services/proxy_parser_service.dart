@@ -8,7 +8,7 @@ class ParsedProxyNode {
   final String? idOrPassword;
   final String? alterId;
   final String? cipher;
-  final String network; // 'tcp', 'ws', 'grpc', 'h2', 'kcp', 'quic'
+  final String network; // 'tcp', 'ws', 'grpc', 'h2', 'kcp', 'quic', 'xhttp', 'splithttp'
   final String security; // 'none', 'tls', 'reality'
   final String? sni;
   final String? path;
@@ -24,6 +24,11 @@ class ParsedProxyNode {
   final List<String>? alpn;
   final String? headerType;
   final String remarks;
+  final Map<String, dynamic>? finalmask;
+  final Map<String, dynamic>? sockopt;
+  final Map<String, dynamic>? xhttpSettings;
+  final Map<String, dynamic>? extraStreamSettings;
+  final Map<String, dynamic>? rawOutbound;
 
   ParsedProxyNode({
     required this.protocol,
@@ -48,6 +53,11 @@ class ParsedProxyNode {
     this.alpn,
     this.headerType,
     required this.remarks,
+    this.finalmask,
+    this.sockopt,
+    this.xhttpSettings,
+    this.extraStreamSettings,
+    this.rawOutbound,
   });
 
   /// Converts parsed proxy node to Xray outbound map
@@ -55,6 +65,38 @@ class ParsedProxyNode {
     required String tag,
     String? dialerProxyTag,
   }) {
+    if (rawOutbound != null) {
+      // Retain raw outbound configuration with 100% fidelity
+      final Map<String, dynamic> outbound =
+          json.decode(json.encode(rawOutbound)) as Map<String, dynamic>;
+      outbound['tag'] = tag;
+
+      final streamSettings = Map<String, dynamic>.from(
+        outbound['streamSettings'] as Map? ?? {},
+      );
+
+      final sockoptMap = Map<String, dynamic>.from(
+        streamSettings['sockopt'] as Map? ?? {},
+      );
+
+      if (dialerProxyTag != null && dialerProxyTag.isNotEmpty) {
+        // Chained hops (hop1..N): safely merge dialerProxy without wiping existing options
+        sockoptMap['dialerProxy'] = dialerProxyTag;
+        streamSettings['sockopt'] = sockoptMap;
+      } else {
+        // Entry node (hop0): ensure no residual dialerProxy exists
+        sockoptMap.remove('dialerProxy');
+        if (sockoptMap.isNotEmpty) {
+          streamSettings['sockopt'] = sockoptMap;
+        } else {
+          streamSettings.remove('sockopt');
+        }
+      }
+
+      outbound['streamSettings'] = streamSettings;
+      return outbound;
+    }
+
     final Map<String, dynamic> outbound = {
       'tag': tag,
       'protocol': protocol,
@@ -159,8 +201,9 @@ class ParsedProxyNode {
     }
 
     // Stream settings
+    final normalizedNet = (network == 'splithttp') ? 'xhttp' : network;
     final Map<String, dynamic> streamSettings = {
-      'network': network,
+      'network': normalizedNet,
       'security': security,
     };
 
@@ -236,13 +279,44 @@ class ParsedProxyNode {
         quicSettings['header'] = {'type': headerType};
       }
       streamSettings['quicSettings'] = quicSettings;
+    } else if (network == 'xhttp' || network == 'splithttp') {
+      final Map<String, dynamic> xhttp = Map<String, dynamic>.from(xhttpSettings ?? {});
+      if (path != null && path!.isNotEmpty && !xhttp.containsKey('path')) {
+        xhttp['path'] = path;
+      }
+      if (host != null && host!.isNotEmpty && !xhttp.containsKey('host')) {
+        xhttp['host'] = host;
+      }
+      if (mode != null && mode!.isNotEmpty && !xhttp.containsKey('mode')) {
+        xhttp['mode'] = mode;
+      }
+      streamSettings['xhttpSettings'] = xhttp;
     }
 
-    // Dialer proxy (multi-hop chaining)
+    // Finalmask settings
+    if (finalmask != null && finalmask!.isNotEmpty) {
+      streamSettings['finalmask'] = json.decode(json.encode(finalmask));
+    }
+
+    // Sockopt (including dialerProxy)
+    final Map<String, dynamic> sockoptMap = Map<String, dynamic>.from(sockopt ?? {});
     if (dialerProxyTag != null && dialerProxyTag.isNotEmpty) {
-      streamSettings['sockopt'] = {
-        'dialerProxy': dialerProxyTag,
-      };
+      sockoptMap['dialerProxy'] = dialerProxyTag;
+      streamSettings['sockopt'] = sockoptMap;
+    } else {
+      sockoptMap.remove('dialerProxy');
+      if (sockoptMap.isNotEmpty) {
+        streamSettings['sockopt'] = sockoptMap;
+      }
+    }
+
+    // Extra stream settings
+    if (extraStreamSettings != null && extraStreamSettings!.isNotEmpty) {
+      for (final entry in extraStreamSettings!.entries) {
+        if (!streamSettings.containsKey(entry.key)) {
+          streamSettings[entry.key] = entry.value;
+        }
+      }
     }
 
     outbound['streamSettings'] = streamSettings;
@@ -252,11 +326,328 @@ class ParsedProxyNode {
 
 /// Service to parse proxy share links and assemble multi-hop Xray JSON configs
 class ProxyParserService {
-  /// Parses a proxy link (VLESS, VMess, Trojan, SS, SOCKS, HTTP) into a [ParsedProxyNode]
+  /// Non-proxy protocols to ignore when extracting outbounds from full configs
+  static const Set<String> nonProxyProtocols = {
+    'freedom',
+    'blackhole',
+    'dns',
+  };
+
+  /// Sanitizes relaxed JSON/JSON5 by removing line & block comments and trailing commas.
+  static String sanitizeJson(String input) {
+    // Pass 1: Strip comments while respecting string literals
+    final withoutComments = StringBuffer();
+    int i = 0;
+    final len = input.length;
+    bool inString = false;
+
+    while (i < len) {
+      final c = input[i];
+
+      if (inString) {
+        withoutComments.write(c);
+        if (c == '\\' && i + 1 < len) {
+          i++;
+          withoutComments.write(input[i]);
+        } else if (c == '"') {
+          inString = false;
+        }
+        i++;
+        continue;
+      }
+
+      if (c == '"') {
+        inString = true;
+        withoutComments.write(c);
+        i++;
+        continue;
+      }
+
+      // Check for line comment //
+      if (c == '/' && i + 1 < len && input[i + 1] == '/') {
+        i += 2;
+        while (i < len && input[i] != '\n' && input[i] != '\r') {
+          i++;
+        }
+        continue;
+      }
+
+      // Check for block comment /* ... */
+      if (c == '/' && i + 1 < len && input[i + 1] == '*') {
+        i += 2;
+        while (i + 1 < len && !(input[i] == '*' && input[i + 1] == '/')) {
+          i++;
+        }
+        i += 2; // skip */
+        continue;
+      }
+
+      withoutComments.write(c);
+      i++;
+    }
+
+    final commentStripped = withoutComments.toString();
+
+    // Pass 2: Strip trailing commas before } or ] while respecting string literals
+    final result = StringBuffer();
+    i = 0;
+    final len2 = commentStripped.length;
+    inString = false;
+
+    while (i < len2) {
+      final c = commentStripped[i];
+
+      if (inString) {
+        result.write(c);
+        if (c == '\\' && i + 1 < len2) {
+          i++;
+          result.write(commentStripped[i]);
+        } else if (c == '"') {
+          inString = false;
+        }
+        i++;
+        continue;
+      }
+
+      if (c == '"') {
+        inString = true;
+        result.write(c);
+        i++;
+        continue;
+      }
+
+      if (c == ',') {
+        // Look ahead for the next non-whitespace character
+        int j = i + 1;
+        while (j < len2 &&
+            (commentStripped[j] == ' ' ||
+                commentStripped[j] == '\t' ||
+                commentStripped[j] == '\n' ||
+                commentStripped[j] == '\r')) {
+          j++;
+        }
+        if (j < len2 && (commentStripped[j] == '}' || commentStripped[j] == ']')) {
+          // Trailing comma: skip writing ','
+          i++;
+          continue;
+        }
+      }
+
+      result.write(c);
+      i++;
+    }
+
+    return result.toString();
+  }
+
+  /// Extracts the proxy outbound map from a full Xray config or standalone outbound
+  static Map<String, dynamic> extractOutboundFromJson(Map<String, dynamic> jsonMap) {
+    // Case 1: Full config with 'outbounds' list
+    if (jsonMap.containsKey('outbounds') && jsonMap['outbounds'] is List) {
+      final outbounds = jsonMap['outbounds'] as List;
+      for (final item in outbounds) {
+        if (item is Map) {
+          final proto = item['protocol']?.toString().toLowerCase();
+          if (proto != null && proto.isNotEmpty && !nonProxyProtocols.contains(proto)) {
+            return Map<String, dynamic>.from(item);
+          }
+        }
+      }
+      throw const FormatException(
+        'No proxy outbound found in Xray configuration outbounds (ignoring freedom, blackhole, dns)',
+      );
+    }
+
+    // Case 2: Standalone outbound map
+    if (jsonMap.containsKey('protocol')) {
+      final proto = jsonMap['protocol'].toString().toLowerCase();
+      if (nonProxyProtocols.contains(proto)) {
+        throw FormatException('Protocol "$proto" is not a proxy outbound protocol');
+      }
+      return jsonMap;
+    }
+
+    throw const FormatException(
+      'JSON does not contain a valid Xray outbound (missing "protocol" or "outbounds")',
+    );
+  }
+
+  /// Parses an Xray JSON config or standalone outbound JSON into a [ParsedProxyNode]
+  static ParsedProxyNode parseJsonConfig(String jsonStr) {
+    final sanitized = sanitizeJson(jsonStr);
+    final dynamic decoded;
+    try {
+      decoded = json.decode(sanitized);
+    } catch (e) {
+      throw FormatException('Invalid JSON format: $e');
+    }
+
+    final Map<String, dynamic> outboundMap;
+    if (decoded is Map<String, dynamic>) {
+      outboundMap = extractOutboundFromJson(decoded);
+    } else if (decoded is Map) {
+      outboundMap = extractOutboundFromJson(Map<String, dynamic>.from(decoded));
+    } else if (decoded is List && decoded.isNotEmpty) {
+      final proxyOutbound = decoded.firstWhere(
+        (element) =>
+            element is Map &&
+            element['protocol'] != null &&
+            !nonProxyProtocols.contains(element['protocol'].toString().toLowerCase()),
+        orElse: () => null,
+      );
+      if (proxyOutbound == null) {
+        throw const FormatException('No proxy outbound found in JSON list');
+      }
+      outboundMap = Map<String, dynamic>.from(proxyOutbound as Map);
+    } else {
+      throw const FormatException('JSON root must be an object or array');
+    }
+
+    return parseOutboundMap(outboundMap);
+  }
+
+  /// Converts an Xray outbound Map into a [ParsedProxyNode] retaining raw outbound for 100% fidelity
+  static ParsedProxyNode parseOutboundMap(
+    Map<String, dynamic> outboundMap, [
+    String? fallbackRemarks,
+  ]) {
+    final protocol = outboundMap['protocol']?.toString().toLowerCase() ?? '';
+    if (protocol.isEmpty) {
+      throw const FormatException('Outbound missing protocol');
+    }
+
+    final tag = outboundMap['tag']?.toString();
+    final remarks = fallbackRemarks ?? tag ?? '${protocol.toUpperCase()} Node';
+
+    final settings = outboundMap['settings'] as Map?;
+    String address = '';
+    int port = 443;
+    String? idOrPassword;
+    String? alterId;
+    String? cipher;
+    String? flow;
+    String? encryption;
+
+    if (protocol == 'vless' || protocol == 'vmess') {
+      final vnext = settings?['vnext'] as List?;
+      if (vnext != null && vnext.isNotEmpty && vnext.first is Map) {
+        final server = vnext.first as Map;
+        address = server['address']?.toString() ?? '';
+        port = int.tryParse(server['port']?.toString() ?? '') ?? 443;
+        final users = server['users'] as List?;
+        if (users != null && users.isNotEmpty && users.first is Map) {
+          final user = users.first as Map;
+          idOrPassword = user['id']?.toString();
+          alterId = user['alterId']?.toString();
+          cipher = user['security']?.toString();
+          flow = user['flow']?.toString();
+          encryption = user['encryption']?.toString();
+        }
+      }
+    } else if (protocol == 'trojan' ||
+        protocol == 'shadowsocks' ||
+        protocol == 'socks' ||
+        protocol == 'http') {
+      final servers = settings?['servers'] as List?;
+      if (servers != null && servers.isNotEmpty && servers.first is Map) {
+        final server = servers.first as Map;
+        address = server['address']?.toString() ?? '';
+        port = int.tryParse(server['port']?.toString() ?? '') ?? 443;
+        idOrPassword = server['password']?.toString();
+        cipher = server['method']?.toString();
+        final users = server['users'] as List?;
+        if (users != null && users.isNotEmpty && users.first is Map) {
+          final user = users.first as Map;
+          idOrPassword ??= user['user']?.toString();
+          encryption ??= user['pass']?.toString();
+        }
+      }
+    }
+
+    final streamSettings = outboundMap['streamSettings'] as Map?;
+    final network = streamSettings?['network']?.toString() ?? 'tcp';
+    final security = streamSettings?['security']?.toString() ?? 'none';
+
+    final tlsSettings = streamSettings?['tlsSettings'] as Map?;
+    final realitySettings = streamSettings?['realitySettings'] as Map?;
+    final sni = tlsSettings?['serverName']?.toString() ??
+        realitySettings?['serverName']?.toString();
+    final fingerprint = tlsSettings?['fingerprint']?.toString() ??
+        realitySettings?['fingerprint']?.toString();
+    final alpnList = tlsSettings?['alpn'] as List?;
+    final alpn = alpnList?.map((e) => e.toString()).toList();
+    final publicKey = realitySettings?['publicKey']?.toString();
+    final shortId = realitySettings?['shortId']?.toString();
+    final spiderX = realitySettings?['spiderX']?.toString();
+
+    final wsSettings = streamSettings?['wsSettings'] as Map?;
+    final grpcSettings = streamSettings?['grpcSettings'] as Map?;
+    final httpSettings = streamSettings?['httpSettings'] as Map?;
+    final xhttpSettings = streamSettings?['xhttpSettings'] as Map?;
+
+    final path = wsSettings?['path']?.toString() ??
+        httpSettings?['path']?.toString() ??
+        xhttpSettings?['path']?.toString();
+    final host = wsSettings?['headers']?['Host']?.toString() ??
+        (httpSettings?['host'] is List
+            ? (httpSettings!['host'] as List).firstOrNull?.toString()
+            : httpSettings?['host']?.toString()) ??
+        xhttpSettings?['host']?.toString();
+    final serviceName = grpcSettings?['serviceName']?.toString();
+    final mode = (grpcSettings?['multiMode'] == true)
+        ? 'multi'
+        : xhttpSettings?['mode']?.toString();
+
+    final finalmask = streamSettings?['finalmask'] is Map
+        ? Map<String, dynamic>.from(streamSettings!['finalmask'] as Map)
+        : null;
+
+    final sockopt = streamSettings?['sockopt'] is Map
+        ? Map<String, dynamic>.from(streamSettings!['sockopt'] as Map)
+        : null;
+
+    final xhttp = xhttpSettings is Map
+        ? Map<String, dynamic>.from(xhttpSettings)
+        : null;
+
+    return ParsedProxyNode(
+      protocol: protocol,
+      address: address,
+      port: port,
+      idOrPassword: idOrPassword,
+      alterId: alterId,
+      cipher: cipher,
+      network: network,
+      security: security,
+      sni: sni,
+      path: path,
+      host: host,
+      serviceName: serviceName,
+      mode: mode,
+      publicKey: publicKey,
+      shortId: shortId,
+      spiderX: spiderX,
+      fingerprint: fingerprint,
+      flow: flow,
+      encryption: encryption,
+      alpn: alpn,
+      remarks: remarks,
+      finalmask: finalmask,
+      sockopt: sockopt,
+      xhttpSettings: xhttp,
+      rawOutbound: outboundMap,
+    );
+  }
+
+  /// Parses a proxy link (VLESS, VMess, etc.) OR raw Xray JSON config into a [ParsedProxyNode]
   static ParsedProxyNode parseLink(String shareLink) {
     final trimmed = shareLink.trim();
     if (trimmed.isEmpty) {
       throw const FormatException('Share link cannot be empty');
+    }
+
+    if (_isJsonInput(trimmed)) {
+      return parseJsonConfig(trimmed);
     }
 
     if (trimmed.startsWith('vless://')) {
@@ -273,7 +664,7 @@ class ProxyParserService {
       return _parseHttp(trimmed);
     } else {
       throw const FormatException(
-        'Unsupported proxy link protocol. Supported protocols: vless://, vmess://, trojan://, ss://, socks://, socks5://, http://, https://',
+        'Unsupported proxy link protocol. Supported protocols: vless://, vmess://, trojan://, ss://, socks://, socks5://, http://, https://, or raw Xray JSON config',
       );
     }
   }
@@ -314,9 +705,29 @@ class ProxyParserService {
     final fp = queryParams['fp'] ?? queryParams['fingerprint'];
     final flow = queryParams['flow'];
     final encryption = queryParams['encryption'];
-    final alpnStr = queryParams['alpn'];
-    final alpn = alpnStr != null ? alpnStr.split(',') : null;
+    final alpn = queryParams['alpn']?.split(',');
     final headerType = queryParams['headerType'];
+
+    Map<String, dynamic>? finalmask;
+    if (queryParams.containsKey('finalmask')) {
+      finalmask = _parseFinalmask(queryParams['finalmask']!);
+    }
+
+    final sockopt = _parseSockopt(queryParams);
+
+    if (queryParams.containsKey('fragment')) {
+      _applyFragmentParam(
+        raw: queryParams['fragment']!,
+        existingFinalmask: finalmask,
+        sockopt: sockopt,
+        setFinalmask: (fm) => finalmask = fm,
+      );
+    }
+
+    Map<String, dynamic>? xhttp;
+    if (net == 'xhttp' || net == 'splithttp') {
+      xhttp = _parseXhttpSettings(queryParams, path, host, mode);
+    }
 
     return ParsedProxyNode(
       protocol: 'vless',
@@ -339,6 +750,9 @@ class ProxyParserService {
       alpn: alpn,
       headerType: headerType,
       remarks: remarks.isNotEmpty ? remarks : 'VLESS Node',
+      finalmask: finalmask,
+      sockopt: sockopt.isNotEmpty ? sockopt : null,
+      xhttpSettings: xhttp,
     );
   }
 
@@ -376,9 +790,29 @@ class ProxyParserService {
     final sid = queryParams['sid'] ?? queryParams['shortId'];
     final spx = queryParams['spx'] ?? queryParams['spiderX'];
     final fp = queryParams['fp'] ?? queryParams['fingerprint'];
-    final alpnStr = queryParams['alpn'];
-    final alpn = alpnStr != null ? alpnStr.split(',') : null;
+    final alpn = queryParams['alpn']?.split(',');
     final headerType = queryParams['headerType'];
+
+    Map<String, dynamic>? finalmask;
+    if (queryParams.containsKey('finalmask')) {
+      finalmask = _parseFinalmask(queryParams['finalmask']!);
+    }
+
+    final sockopt = _parseSockopt(queryParams);
+
+    if (queryParams.containsKey('fragment')) {
+      _applyFragmentParam(
+        raw: queryParams['fragment']!,
+        existingFinalmask: finalmask,
+        sockopt: sockopt,
+        setFinalmask: (fm) => finalmask = fm,
+      );
+    }
+
+    Map<String, dynamic>? xhttp;
+    if (net == 'xhttp' || net == 'splithttp') {
+      xhttp = _parseXhttpSettings(queryParams, path, host, mode);
+    }
 
     return ParsedProxyNode(
       protocol: 'trojan',
@@ -399,6 +833,9 @@ class ProxyParserService {
       alpn: alpn,
       headerType: headerType,
       remarks: remarks.isNotEmpty ? remarks : 'Trojan Node',
+      finalmask: finalmask,
+      sockopt: sockopt.isNotEmpty ? sockopt : null,
+      xhttpSettings: xhttp,
     );
   }
 
@@ -410,7 +847,7 @@ class ProxyParserService {
     if (!raw.contains('@')) {
       try {
         final decodedStr = utf8.decode(base64.decode(_normalizeBase64(raw)));
-        final Map<String, dynamic> jsonMap = json.decode(decodedStr);
+        final Map<String, dynamic> jsonMap = json.decode(sanitizeJson(decodedStr));
 
         final add = jsonMap['add']?.toString() ?? '';
         final port = int.tryParse(jsonMap['port']?.toString() ?? '') ?? 443;
@@ -434,6 +871,38 @@ class ProxyParserService {
           throw const FormatException('VMess JSON missing address or id');
         }
 
+        Map<String, dynamic>? finalmask;
+        if (jsonMap['finalmask'] is Map) {
+          finalmask = Map<String, dynamic>.from(jsonMap['finalmask'] as Map);
+        } else if (jsonMap['finalmask'] is String) {
+          finalmask = _parseFinalmask(jsonMap['finalmask'] as String);
+        }
+
+        final Map<String, dynamic> sockopt = {};
+        if (jsonMap['sockopt'] is Map) {
+          sockopt.addAll(Map<String, dynamic>.from(jsonMap['sockopt'] as Map));
+        }
+
+        if (jsonMap['fragment'] != null) {
+          _applyFragmentParam(
+            raw: jsonMap['fragment'].toString(),
+            existingFinalmask: finalmask,
+            sockopt: sockopt,
+            setFinalmask: (fm) => finalmask = fm,
+          );
+        }
+
+        Map<String, dynamic>? xhttp;
+        if (net == 'xhttp' || net == 'splithttp') {
+          xhttp = {};
+          if (path != null && path.isNotEmpty) xhttp['path'] = path;
+          if (host != null && host.isNotEmpty) xhttp['host'] = host;
+          if (jsonMap['mode'] != null) xhttp['mode'] = jsonMap['mode'].toString();
+          if (jsonMap['xhttpSettings'] is Map) {
+            xhttp.addAll(Map<String, dynamic>.from(jsonMap['xhttpSettings'] as Map));
+          }
+        }
+
         return ParsedProxyNode(
           protocol: 'vmess',
           address: add,
@@ -450,6 +919,9 @@ class ProxyParserService {
           alpn: alpn,
           headerType: headerType,
           remarks: ps.isNotEmpty ? ps : 'VMess Node',
+          finalmask: finalmask,
+          sockopt: sockopt.isNotEmpty ? sockopt : null,
+          xhttpSettings: xhttp,
         );
       } catch (e) {
         if (e is FormatException && e.message.startsWith('Unsupported')) rethrow;
@@ -486,6 +958,27 @@ class ProxyParserService {
     final aid = queryParams['aid'] ?? queryParams['alterId'] ?? '0';
     final cipher = queryParams['scy'] ?? queryParams['cipher'] ?? 'auto';
 
+    Map<String, dynamic>? finalmask;
+    if (queryParams.containsKey('finalmask')) {
+      finalmask = _parseFinalmask(queryParams['finalmask']!);
+    }
+
+    final sockopt = _parseSockopt(queryParams);
+
+    if (queryParams.containsKey('fragment')) {
+      _applyFragmentParam(
+        raw: queryParams['fragment']!,
+        existingFinalmask: finalmask,
+        sockopt: sockopt,
+        setFinalmask: (fm) => finalmask = fm,
+      );
+    }
+
+    Map<String, dynamic>? xhttp;
+    if (net == 'xhttp' || net == 'splithttp') {
+      xhttp = _parseXhttpSettings(queryParams, path, host, queryParams['mode']);
+    }
+
     return ParsedProxyNode(
       protocol: 'vmess',
       address: hostPort.host,
@@ -500,6 +993,9 @@ class ProxyParserService {
       host: host,
       fingerprint: fp,
       remarks: remarks.isNotEmpty ? remarks : 'VMess Node',
+      finalmask: finalmask,
+      sockopt: sockopt.isNotEmpty ? sockopt : null,
+      xhttpSettings: xhttp,
     );
   }
 
@@ -570,7 +1066,22 @@ class ProxyParserService {
     }
 
     final queryParams = _parseQueryString(queryString);
-    final plugin = queryParams['plugin'];
+
+    Map<String, dynamic>? finalmask;
+    if (queryParams.containsKey('finalmask')) {
+      finalmask = _parseFinalmask(queryParams['finalmask']!);
+    }
+
+    final sockopt = _parseSockopt(queryParams);
+
+    if (queryParams.containsKey('fragment')) {
+      _applyFragmentParam(
+        raw: queryParams['fragment']!,
+        existingFinalmask: finalmask,
+        sockopt: sockopt,
+        setFinalmask: (fm) => finalmask = fm,
+      );
+    }
 
     return ParsedProxyNode(
       protocol: 'shadowsocks',
@@ -579,6 +1090,8 @@ class ProxyParserService {
       idOrPassword: password,
       cipher: method.isNotEmpty ? method : 'aes-256-gcm',
       remarks: remarks.isNotEmpty ? remarks : 'Shadowsocks Node',
+      finalmask: finalmask,
+      sockopt: sockopt.isNotEmpty ? sockopt : null,
     );
   }
 
@@ -628,6 +1141,24 @@ class ProxyParserService {
       port = hostPort.port;
     }
 
+    final queryParams = _parseQueryString(queryString);
+
+    Map<String, dynamic>? finalmask;
+    if (queryParams.containsKey('finalmask')) {
+      finalmask = _parseFinalmask(queryParams['finalmask']!);
+    }
+
+    final sockopt = _parseSockopt(queryParams);
+
+    if (queryParams.containsKey('fragment')) {
+      _applyFragmentParam(
+        raw: queryParams['fragment']!,
+        existingFinalmask: finalmask,
+        sockopt: sockopt,
+        setFinalmask: (fm) => finalmask = fm,
+      );
+    }
+
     return ParsedProxyNode(
       protocol: 'socks',
       address: host,
@@ -635,6 +1166,8 @@ class ProxyParserService {
       idOrPassword: username,
       encryption: password,
       remarks: remarks.isNotEmpty ? remarks : 'SOCKS Node',
+      finalmask: finalmask,
+      sockopt: sockopt.isNotEmpty ? sockopt : null,
     );
   }
 
@@ -688,6 +1221,22 @@ class ProxyParserService {
     final queryParams = _parseQueryString(queryString);
     final sni = queryParams['sni'] ?? queryParams['peer'] ?? host;
 
+    Map<String, dynamic>? finalmask;
+    if (queryParams.containsKey('finalmask')) {
+      finalmask = _parseFinalmask(queryParams['finalmask']!);
+    }
+
+    final sockopt = _parseSockopt(queryParams);
+
+    if (queryParams.containsKey('fragment')) {
+      _applyFragmentParam(
+        raw: queryParams['fragment']!,
+        existingFinalmask: finalmask,
+        sockopt: sockopt,
+        setFinalmask: (fm) => finalmask = fm,
+      );
+    }
+
     return ParsedProxyNode(
       protocol: 'http',
       address: host,
@@ -697,6 +1246,8 @@ class ProxyParserService {
       security: isHttps ? 'tls' : 'none',
       sni: isHttps ? sni : null,
       remarks: remarks.isNotEmpty ? remarks : (isHttps ? 'HTTPS Node' : 'HTTP Node'),
+      finalmask: finalmask,
+      sockopt: sockopt.isNotEmpty ? sockopt : null,
     );
   }
 
@@ -814,6 +1365,204 @@ class ProxyParserService {
       params[key] = val;
     }
     return params;
+  }
+
+  static bool _isJsonInput(String input) {
+    final t = input.trim();
+    if (t.startsWith('{') || t.startsWith('[')) return true;
+    if (t.startsWith('//') || t.startsWith('/*')) {
+      try {
+        final sanitized = sanitizeJson(t).trim();
+        return sanitized.startsWith('{') || sanitized.startsWith('[');
+      } catch (_) {
+        return false;
+      }
+    }
+    return false;
+  }
+
+  static Map<String, dynamic>? _parseFinalmask(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+
+    // Try 1: URL decoded, then JSON decode
+    try {
+      final urlDecoded = Uri.decodeComponent(trimmed);
+      final sanitized = sanitizeJson(urlDecoded);
+      final decoded = json.decode(sanitized);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+    } catch (_) {}
+
+    // Try 2: Base64 decode
+    for (final candidate in [trimmed, Uri.decodeComponent(trimmed)]) {
+      try {
+        final b64Decoded = utf8.decode(base64.decode(_normalizeBase64(candidate)));
+        final sanitized = sanitizeJson(b64Decoded);
+        final decoded = json.decode(sanitized);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+      } catch (_) {}
+    }
+
+    return null;
+  }
+
+  static Map<String, dynamic> _parseSockopt(Map<String, String> queryParams) {
+    final sockopt = <String, dynamic>{};
+
+    if (queryParams.containsKey('sockopt')) {
+      final raw = queryParams['sockopt']!.trim();
+      try {
+        final decoded = Uri.decodeComponent(raw);
+        final sanitized = sanitizeJson(decoded);
+        final obj = json.decode(sanitized);
+        if (obj is Map<String, dynamic>) {
+          sockopt.addAll(obj);
+        }
+      } catch (_) {
+        try {
+          final b64 = utf8.decode(base64.decode(_normalizeBase64(raw)));
+          final sanitized = sanitizeJson(b64);
+          final obj = json.decode(sanitized);
+          if (obj is Map<String, dynamic>) {
+            sockopt.addAll(obj);
+          }
+        } catch (_) {}
+      }
+    }
+
+    if (queryParams.containsKey('domainStrategy')) {
+      sockopt['domainStrategy'] = queryParams['domainStrategy'];
+    } else if (queryParams.containsKey('domain_strategy')) {
+      sockopt['domainStrategy'] = queryParams['domain_strategy'];
+    }
+
+    if (queryParams.containsKey('tfo') || queryParams.containsKey('tcpFastOpen')) {
+      final tfoVal = queryParams['tfo'] ?? queryParams['tcpFastOpen'];
+      sockopt['tcpFastOpen'] = (tfoVal == '1' || tfoVal?.toLowerCase() == 'true');
+    }
+
+    if (queryParams.containsKey('dialerProxy')) {
+      sockopt['dialerProxy'] = queryParams['dialerProxy'];
+    }
+
+    if (queryParams.containsKey('mark')) {
+      final markVal = int.tryParse(queryParams['mark']!);
+      if (markVal != null) sockopt['mark'] = markVal;
+    }
+
+    if (queryParams.containsKey('tproxy')) {
+      sockopt['tproxy'] = queryParams['tproxy'];
+    }
+
+    if (queryParams.containsKey('happyEyeballs')) {
+      try {
+        final sanitized = sanitizeJson(Uri.decodeComponent(queryParams['happyEyeballs']!));
+        final obj = json.decode(sanitized);
+        if (obj is Map<String, dynamic>) {
+          sockopt['happyEyeballs'] = obj;
+        }
+      } catch (_) {}
+    }
+
+    return sockopt;
+  }
+
+  static void _applyFragmentParam({
+    required String raw,
+    Map<String, dynamic>? existingFinalmask,
+    required Map<String, dynamic> sockopt,
+    void Function(Map<String, dynamic>)? setFinalmask,
+  }) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return;
+
+    // Check if raw is JSON or base64 JSON
+    Map<String, dynamic>? jsonMap;
+    try {
+      final decoded = Uri.decodeComponent(trimmed);
+      final sanitized = sanitizeJson(decoded);
+      final obj = json.decode(sanitized);
+      if (obj is Map<String, dynamic>) jsonMap = obj;
+    } catch (_) {}
+
+    if (jsonMap == null) {
+      try {
+        final b64 = utf8.decode(base64.decode(_normalizeBase64(trimmed)));
+        final sanitized = sanitizeJson(b64);
+        final obj = json.decode(sanitized);
+        if (obj is Map<String, dynamic>) jsonMap = obj;
+      } catch (_) {}
+    }
+
+    if (jsonMap != null) {
+      if (jsonMap.containsKey('tcp')) {
+        if (setFinalmask != null) setFinalmask(jsonMap);
+        return;
+      }
+      if (jsonMap.containsKey('packets') ||
+          jsonMap.containsKey('length') ||
+          jsonMap.containsKey('lengths') ||
+          jsonMap.containsKey('interval') ||
+          jsonMap.containsKey('delays')) {
+        sockopt['fragment'] = jsonMap;
+        return;
+      }
+    }
+
+    // Comma-separated: packets,length,interval
+    final decodedStr = Uri.decodeComponent(trimmed);
+    final parts = decodedStr.split(',');
+    if (parts.isNotEmpty) {
+      final packets = parts[0].trim();
+      final length = parts.length > 1 ? parts[1].trim() : '';
+      final interval = parts.length > 2 ? parts[2].trim() : '';
+      final fragMap = <String, dynamic>{
+        'packets': packets,
+        if (length.isNotEmpty) 'length': length,
+        if (interval.isNotEmpty) 'interval': interval,
+      };
+      sockopt['fragment'] = fragMap;
+    }
+  }
+
+  static Map<String, dynamic> _parseXhttpSettings(
+    Map<String, String> queryParams,
+    String? path,
+    String? host,
+    String? mode,
+  ) {
+    final xhttp = <String, dynamic>{};
+    if (path != null && path.isNotEmpty) xhttp['path'] = path;
+    if (host != null && host.isNotEmpty) xhttp['host'] = host;
+    if (mode != null && mode.isNotEmpty) xhttp['mode'] = mode;
+
+    if (queryParams.containsKey('extra')) {
+      try {
+        final decodedExtra = Uri.decodeComponent(queryParams['extra']!);
+        final sanitized = sanitizeJson(decodedExtra);
+        final obj = json.decode(sanitized);
+        if (obj is Map<String, dynamic>) {
+          xhttp.addAll(obj);
+        }
+      } catch (_) {}
+    }
+
+    if (queryParams.containsKey('xhttpSettings')) {
+      try {
+        final decoded = Uri.decodeComponent(queryParams['xhttpSettings']!);
+        final sanitized = sanitizeJson(decoded);
+        final obj = json.decode(sanitized);
+        if (obj is Map<String, dynamic>) {
+          xhttp.addAll(obj);
+        }
+      } catch (_) {}
+    }
+
+    return xhttp;
   }
 }
 

@@ -32,9 +32,6 @@ class _ChainScreenState extends State<ChainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chain (Multi-Hop Config)'),
@@ -119,7 +116,7 @@ class _ChainScreenState extends State<ChainScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Chain VLESS, VMess, Trojan, SS, SOCKS, or HTTP nodes from Local → Entry → Exit → Internet.',
+                    'Chain VLESS, VMess, Trojan, SS, SOCKS, or HTTP nodes (Share Links or Xray JSON configs) from Local → Entry → Exit → Internet.',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -246,11 +243,11 @@ class _ChainScreenState extends State<ChainScreen> {
                     TextField(
                       controller: textCtrl,
                       onChanged: (val) => controller.setHopLink(index, val),
-                      maxLines: 2,
+                      maxLines: 3,
                       minLines: 1,
                       style: const TextStyle(fontSize: 13, fontFamily: 'monospace'),
                       decoration: InputDecoration(
-                        hintText: 'vless://, vmess://, trojan://, ss://, socks://, or http://...',
+                        hintText: 'Share link (vless://, vmess://, etc.) or Xray JSON config...',
                         filled: true,
                         fillColor: colorScheme.surface,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
