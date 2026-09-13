@@ -287,6 +287,11 @@ class MasqueScoutScanner {
   Future<MasqueScoutResult> testMasqueH2(String endpoint) async {
     final (targetIp, targetPort) = _getTargetIpAndPort(endpoint);
     final stopwatch = Stopwatch()..start();
+    final deadline = DateTime.now().add(config.timeout);
+    Duration remainingTimeout() {
+      final rem = deadline.difference(DateTime.now());
+      return rem.isNegative ? const Duration(milliseconds: 50) : rem;
+    }
 
     Socket? rawSocket;
     SecureSocket? secureSocket;
@@ -296,7 +301,7 @@ class MasqueScoutScanner {
       rawSocket = await Socket.connect(
         targetIp,
         targetPort,
-        timeout: config.timeout,
+        timeout: remainingTimeout(),
       );
       rawSocket.setOption(SocketOption.tcpNoDelay, true);
 
@@ -306,7 +311,7 @@ class MasqueScoutScanner {
         host: config.sni,
         supportedProtocols: ['h2'],
         onBadCertificate: (_) => true,
-      ).timeout(config.timeout);
+      ).timeout(remainingTimeout());
 
       final negotiatedProto = secureSocket.selectedProtocol;
       if (negotiatedProto != 'h2') {
@@ -349,9 +354,15 @@ class MasqueScoutScanner {
         onError: (e) {
           if (!completer.isCompleted) completer.completeError(e);
         },
+        onDone: () {
+          if (!completer.isCompleted) {
+            completer.completeError(const SocketException('Stream closed before headers received'));
+          }
+        },
+        cancelOnError: true,
       );
 
-      final statusCode = await completer.future.timeout(config.timeout);
+      final statusCode = await completer.future.timeout(remainingTimeout());
       stopwatch.stop();
 
       return MasqueScoutResult(
@@ -374,7 +385,7 @@ class MasqueScoutScanner {
       );
     } finally {
       try {
-        await transport?.finish();
+        transport?.terminate();
       } catch (_) {}
       try {
         secureSocket?.destroy();
@@ -493,7 +504,7 @@ class MasqueScoutScanner {
       );
     } finally {
       try {
-        await subscription?.cancel();
+        subscription?.cancel();
       } catch (_) {}
       try {
         socket?.close();
@@ -501,29 +512,56 @@ class MasqueScoutScanner {
     }
   }
 
-  /// Dispatch test based on protocol
+  /// Dispatch test based on protocol with safety timeout and error handling
   Future<MasqueScoutResult> testEndpoint(
     String endpoint, {
     Uint8List? prebuiltPacket,
-  }) {
-    switch (config.protocol) {
-      case MasqueProtocol.h3:
-        return testMasqueH3(endpoint, prebuiltPacket: prebuiltPacket);
-      case MasqueProtocol.h2:
-        return testMasqueH2(endpoint);
+  }) async {
+    final (targetIp, targetPort) = _getTargetIpAndPort(endpoint);
+    try {
+      final probeFuture = switch (config.protocol) {
+        MasqueProtocol.h3 => testMasqueH3(endpoint, prebuiltPacket: prebuiltPacket),
+        MasqueProtocol.h2 => testMasqueH2(endpoint),
+      };
+      // Add a safety buffer to allow internal timeouts to report meaningful errors first
+      final hardDeadline = config.timeout + const Duration(milliseconds: 500);
+      return await probeFuture.timeout(hardDeadline);
+    } on TimeoutException {
+      return MasqueScoutResult(
+        ip: targetIp,
+        port: targetPort,
+        protocol: config.protocol,
+        success: false,
+        errorMessage: 'Connection timed out',
+      );
+    } catch (e) {
+      return MasqueScoutResult(
+        ip: targetIp,
+        port: targetPort,
+        protocol: config.protocol,
+        success: false,
+        errorMessage: _formatError(e),
+      );
     }
   }
 
   /// Scan multiple endpoints concurrently emitting progress stream
   Stream<MasqueScoutProgress> scanEndpoints(List<String> endpoints) {
-    final controller = StreamController<MasqueScoutProgress>();
-    _runScan(endpoints, controller);
+    late StreamController<MasqueScoutProgress> controller;
+    var isCancelled = false;
+    controller = StreamController<MasqueScoutProgress>(
+      onCancel: () {
+        isCancelled = true;
+      },
+    );
+    _runScan(endpoints, controller, () => isCancelled);
     return controller.stream;
   }
 
   Future<void> _runScan(
     List<String> endpoints,
     StreamController<MasqueScoutProgress> controller,
+    bool Function() isCancelled,
   ) async {
     if (endpoints.isEmpty) {
       await controller.close();
@@ -543,50 +581,52 @@ class MasqueScoutScanner {
       }
     } catch (_) {}
 
-    // Batching based on maxWorkers
-    final batches = <List<String>>[];
-    for (var i = 0; i < endpoints.length; i += config.maxWorkers) {
-      batches.add(
-        endpoints.sublist(
-          i,
-          i + config.maxWorkers > endpoints.length ? endpoints.length : i + config.maxWorkers,
-        ),
-      );
+    final workerCount = min(config.maxWorkers, endpoints.length);
+    var nextIndex = 0;
+
+    Future<void> worker() async {
+      while (nextIndex < endpoints.length && !isCancelled() && !controller.isClosed) {
+        final i = nextIndex++;
+        final ep = endpoints[i];
+        final packet = config.protocol == MasqueProtocol.h3 ? precomputedH3Packet : null;
+
+        MasqueScoutResult result;
+        try {
+          result = await testEndpoint(ep, prebuiltPacket: packet);
+        } catch (e) {
+          final (targetIp, targetPort) = _getTargetIpAndPort(ep);
+          result = MasqueScoutResult(
+            ip: targetIp,
+            port: targetPort,
+            protocol: config.protocol,
+            success: false,
+            errorMessage: _formatError(e),
+          );
+        }
+
+        if (isCancelled() || controller.isClosed) break;
+
+        completed++;
+        if (result.success) {
+          successful++;
+          results.add(result);
+        }
+
+        controller.add(MasqueScoutProgress(
+          result: result,
+          completed: completed,
+          total: total,
+          successful: successful,
+          workingEndpoints: List.unmodifiable(results),
+        ));
+      }
     }
 
     try {
-      for (final batch in batches) {
-        if (controller.isClosed) break;
-
-        final futures = batch.map((ep) {
-          final packet = config.protocol == MasqueProtocol.h3 ? precomputedH3Packet : null;
-          return testEndpoint(ep, prebuiltPacket: packet);
-        });
-        final batchResults = await Future.wait(futures);
-
-        for (final result in batchResults) {
-          if (controller.isClosed) break;
-
-          completed++;
-          if (result.success) {
-            successful++;
-            results.add(result);
-          }
-
-          controller.add(MasqueScoutProgress(
-            result: result,
-            completed: completed,
-            total: total,
-            successful: successful,
-            workingEndpoints: List.unmodifiable(results),
-          ));
-        }
-
-        // Yield to the event loop so Flutter UI and Android Choreographer can render smoothly
-        await Future.delayed(const Duration(milliseconds: 16));
-      }
+      final workers = List.generate(workerCount, (_) => worker());
+      await Future.wait(workers);
     } catch (e) {
-      if (!controller.isClosed) {
+      if (!controller.isClosed && !isCancelled()) {
         controller.addError(e);
       }
     } finally {
