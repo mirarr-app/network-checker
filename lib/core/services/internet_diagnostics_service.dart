@@ -1030,30 +1030,164 @@ class InternetDiagnosticsService {
         now.isBefore(certificate.endValidity);
   }
 
+  @visibleForTesting
+  static bool certificateLooksLikeDomain(
+    X509Certificate certificate,
+    String domain,
+  ) => _certificateLooksLikeDomain(certificate, domain);
+
+  @visibleForTesting
+  static List<String> extractSubjectAlternativeNames(Uint8List der) =>
+      _extractSubjectAlternativeNames(der);
+
+  @visibleForTesting
+  static bool domainMatchesCertificateName(
+    String domain,
+    String certificateName,
+  ) => _domainMatchesCertificateName(domain, certificateName);
+
   static bool _certificateLooksLikeDomain(
     X509Certificate certificate,
     String domain,
   ) {
-    final normalizedDomain = domain.toLowerCase();
+    final normalizedDomain = domain.toLowerCase().trim();
+
+    // 1. Check Subject Alternative Names (SANs) from certificate DER
+    final sans = _extractSubjectAlternativeNames(certificate.der);
+    for (final san in sans) {
+      if (_domainMatchesCertificateName(normalizedDomain, san)) {
+        return true;
+      }
+    }
+
+    // 2. Fallback: check Common Name (CN) from Subject
     final subject = certificate.subject.toLowerCase();
     final commonNameMatch = RegExp(r'cn=([^,\n]+)').firstMatch(subject);
     final commonName = commonNameMatch?.group(1)?.trim();
-    if (commonName == null) return true;
-    return _domainMatchesCertificateName(normalizedDomain, commonName);
+    if (commonName != null &&
+        _domainMatchesCertificateName(normalizedDomain, commonName)) {
+      return true;
+    }
+
+    // If both SANs and CN are unavailable, avoid false positives
+    if (sans.isEmpty && commonName == null) {
+      return true;
+    }
+
+    return false;
   }
 
   static bool _domainMatchesCertificateName(
     String domain,
     String certificateName,
   ) {
-    final name = certificateName.toLowerCase();
-    if (name == domain) return true;
+    final name = certificateName.toLowerCase().trim();
+    final d = domain.toLowerCase().trim();
+    if (name == d) return true;
+    if ('www.$d' == name || 'www.$name' == d) return true;
     if (name.startsWith('*.')) {
       final suffix = name.substring(1);
-      return domain.endsWith(suffix) &&
-          domain.split('.').length == suffix.split('.').length;
+      // Wildcard subdomain match: *.example.com matches sub.example.com
+      if (d.endsWith(suffix) &&
+          d.split('.').length == suffix.split('.').length) {
+        return true;
+      }
+      // Wildcard apex match: *.example.com matches example.com
+      if (d == name.substring(2)) {
+        return true;
+      }
     }
     return false;
+  }
+
+  static List<String> _extractSubjectAlternativeNames(Uint8List der) {
+    final sans = <String>[];
+    try {
+      final cert = _Asn1Element.parse(der, 0);
+      if (cert != null && cert.tag == 0x30) {
+        final certChildren = cert.children;
+        if (certChildren.isNotEmpty && certChildren[0].tag == 0x30) {
+          final tbs = certChildren[0];
+          _Asn1Element? extensionsBlock;
+          for (final child in tbs.children) {
+            if (child.tag == 0xa3) {
+              extensionsBlock = child;
+              break;
+            }
+          }
+          if (extensionsBlock != null) {
+            final extSeq = extensionsBlock.children;
+            if (extSeq.isNotEmpty) {
+              final extensions = extSeq[0].children;
+              final sanOidBytes = [0x55, 0x1d, 0x11];
+              for (final ext in extensions) {
+                final extChildren = ext.children;
+                if (extChildren.length >= 2) {
+                  final oidElem = extChildren[0];
+                  if (oidElem.tag == 0x06 &&
+                      _bytesEqual(oidElem.value, sanOidBytes)) {
+                    final octetElem = extChildren.last;
+                    if (octetElem.tag == 0x04) {
+                      _parseGeneralNames(octetElem.value, sans);
+                    }
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Fallback: search for SAN OID (2.5.29.17: 0x06, 0x03, 0x55, 0x1d, 0x11)
+      if (sans.isEmpty) {
+        final sanOid = [0x06, 0x03, 0x55, 0x1d, 0x11];
+        for (int i = 0; i < der.length - 7; i++) {
+          if (der[i] == sanOid[0] &&
+              der[i + 1] == sanOid[1] &&
+              der[i + 2] == sanOid[2] &&
+              der[i + 3] == sanOid[3] &&
+              der[i + 4] == sanOid[4]) {
+            int idx = i + 5;
+            if (idx < der.length && der[idx] == 0x01) {
+              idx += 2 + (idx + 1 < der.length ? der[idx + 1] : 0);
+            }
+            if (idx < der.length && der[idx] == 0x04) {
+              final octetElem = _Asn1Element.parse(der, idx);
+              if (octetElem != null) {
+                _parseGeneralNames(octetElem.value, sans);
+                if (sans.isNotEmpty) break;
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    return sans;
+  }
+
+  static void _parseGeneralNames(Uint8List bytes, List<String> sans) {
+    final generalNamesSeq = _Asn1Element.parse(bytes, 0);
+    if (generalNamesSeq == null || generalNamesSeq.tag != 0x30) return;
+    for (final gn in generalNamesSeq.children) {
+      if (gn.tag == 0x82) {
+        // [2] dNSName
+        sans.add(String.fromCharCodes(gn.value).toLowerCase());
+      } else if (gn.tag == 0x87) {
+        // [7] iPAddress
+        if (gn.length == 4) {
+          sans.add(gn.value.join('.'));
+        }
+      }
+    }
+  }
+
+  static bool _bytesEqual(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   static bool _sameIpv4C24(List<String> resolvedIps, String expectedIp) {
@@ -2174,4 +2308,65 @@ class CdnIpScanResult {
   });
 
   double get accessibilityRate => totalTested > 0 ? reachable / totalTested : 0;
+}
+
+
+class _Asn1Element {
+  final int tag;
+  final int headerLength;
+  final int length;
+  final Uint8List raw;
+  final int offset;
+
+  const _Asn1Element({
+    required this.tag,
+    required this.headerLength,
+    required this.length,
+    required this.raw,
+    required this.offset,
+  });
+
+  Uint8List get value =>
+      raw.sublist(offset + headerLength, offset + headerLength + length);
+
+  static _Asn1Element? parse(Uint8List data, int offset) {
+    if (offset >= data.length) return null;
+    final tag = data[offset];
+    int idx = offset + 1;
+    if (idx >= data.length) return null;
+    int length = 0;
+    if (data[idx] & 0x80 == 0) {
+      length = data[idx++];
+    } else {
+      int numBytes = data[idx++] & 0x7f;
+      if (numBytes <= 0 || numBytes > 4 || idx + numBytes > data.length) {
+        return null;
+      }
+      while (numBytes-- > 0) {
+        length = (length << 8) | data[idx++];
+      }
+    }
+    final headerLength = idx - offset;
+    if (offset + headerLength + length > data.length) return null;
+    return _Asn1Element(
+      tag: tag,
+      headerLength: headerLength,
+      length: length,
+      raw: data,
+      offset: offset,
+    );
+  }
+
+  List<_Asn1Element> get children {
+    final list = <_Asn1Element>[];
+    int current = offset + headerLength;
+    final end = current + length;
+    while (current < end) {
+      final elem = _Asn1Element.parse(raw, current);
+      if (elem == null) break;
+      list.add(elem);
+      current = elem.offset + elem.headerLength + elem.length;
+    }
+    return list;
+  }
 }

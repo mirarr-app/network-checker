@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rdnbenet/core/services/internet_diagnostics_service.dart';
 
@@ -89,4 +91,129 @@ void main() {
       expect(result.accessibilityRate, isNotNull);
     });
   });
+
+  group('InternetDiagnosticsService - TLS Certificate Domain Verification', () {
+    test('domainMatchesCertificateName handles exact, wildcard, apex, and www', () {
+      expect(
+        InternetDiagnosticsService.domainMatchesCertificateName('google.com', 'google.com'),
+        isTrue,
+      );
+      expect(
+        InternetDiagnosticsService.domainMatchesCertificateName('mail.google.com', '*.google.com'),
+        isTrue,
+      );
+      expect(
+        InternetDiagnosticsService.domainMatchesCertificateName('google.com', '*.google.com'),
+        isTrue,
+      );
+      expect(
+        InternetDiagnosticsService.domainMatchesCertificateName('playstation.com', 'www.playstation.com'),
+        isTrue,
+      );
+      expect(
+        InternetDiagnosticsService.domainMatchesCertificateName('www.playstation.com', 'playstation.com'),
+        isTrue,
+      );
+      expect(
+        InternetDiagnosticsService.domainMatchesCertificateName('xbox.com', 'surface.com'),
+        isFalse,
+      );
+      expect(
+        InternetDiagnosticsService.domainMatchesCertificateName('evil.google.com.attacker.com', '*.google.com'),
+        isFalse,
+      );
+    });
+
+    test('extractSubjectAlternativeNames extracts DNS names from certificate DER', () {
+      final der = _buildMinimalCertWithSans(['xbox.com', 'surface.com', '*.domain.com']);
+      final sans = InternetDiagnosticsService.extractSubjectAlternativeNames(der);
+      expect(sans, containsAll(['xbox.com', 'surface.com', '*.domain.com']));
+    });
+
+    test('certificateLooksLikeDomain verifies multi-domain / shared CDN SANs (Issue #77)', () {
+      // Scenario 1: Multi-domain / Shared CDN cert where CN is surface.com, but SAN contains xbox.com
+      final xboxCert = _FakeX509Certificate(
+        subject: 'C=US, ST=WA, L=Redmond, O=Microsoft Corporation, CN=surface.com',
+        der: _buildMinimalCertWithSans(['myservice.surface.com', 'xbox.com', 'surface.com']),
+      );
+      expect(
+        InternetDiagnosticsService.certificateLooksLikeDomain(xboxCert, 'xbox.com'),
+        isTrue,
+      );
+
+      // Scenario 2: Wildcard CN (*.google.com) with apex in SAN or matched by wildcard
+      final googleCert = _FakeX509Certificate(
+        subject: 'CN=*.google.com',
+        der: _buildMinimalCertWithSans(['*.google.com', 'google.com']),
+      );
+      expect(
+        InternetDiagnosticsService.certificateLooksLikeDomain(googleCert, 'google.com'),
+        isTrue,
+      );
+
+      // Scenario 3: Subdomain vs Apex CN (*.cloudflareinsights.com in SAN, CN is cloudflareinsights.com)
+      final cfCert = _FakeX509Certificate(
+        subject: 'CN=cloudflareinsights.com',
+        der: _buildMinimalCertWithSans(['cloudflareinsights.com', '*.cloudflareinsights.com']),
+      );
+      expect(
+        InternetDiagnosticsService.certificateLooksLikeDomain(cfCert, 'static.cloudflareinsights.com'),
+        isTrue,
+      );
+
+      // Scenario 4: Genuine mismatch (neither CN nor SAN match)
+      final mismatchCert = _FakeX509Certificate(
+        subject: 'CN=attacker.com',
+        der: _buildMinimalCertWithSans(['attacker.com', 'fake.com']),
+      );
+      expect(
+        InternetDiagnosticsService.certificateLooksLikeDomain(mismatchCert, 'google.com'),
+        isFalse,
+      );
+    });
+  });
+}
+
+class _FakeX509Certificate implements X509Certificate {
+  @override
+  final String subject;
+  @override
+  String get issuer => 'CN=Test CA';
+  @override
+  final Uint8List der;
+  @override
+  DateTime get startValidity => DateTime.now().subtract(const Duration(days: 1));
+  @override
+  DateTime get endValidity => DateTime.now().add(const Duration(days: 30));
+  @override
+  Uint8List get sha1 => Uint8List(20);
+  @override
+  String get pem => '';
+
+  _FakeX509Certificate({
+    required this.subject,
+    Uint8List? der,
+  }) : der = der ?? Uint8List(0);
+}
+
+Uint8List _buildMinimalCertWithSans(List<String> dnsNames) {
+  final gnBytes = <int>[];
+  for (final name in dnsNames) {
+    final nameBytes = name.codeUnits;
+    gnBytes.add(0x82); // [2] dNSName tag
+    gnBytes.add(nameBytes.length);
+    gnBytes.addAll(nameBytes);
+  }
+  final gnSeq = [0x30, gnBytes.length, ...gnBytes];
+  final ext = [
+    0x30,
+    5 + 2 + gnSeq.length,
+    0x06, 0x03, 0x55, 0x1d, 0x11, // OID 2.5.29.17
+    0x04, gnSeq.length, ...gnSeq, // OCTET STRING
+  ];
+  final extsSeq = [0x30, ext.length, ...ext];
+  final extTag = [0xa3, extsSeq.length, ...extsSeq]; // [3] EXPLICIT
+  final tbs = [0x30, extTag.length, ...extTag]; // TBSCertificate
+  final cert = [0x30, tbs.length, ...tbs]; // Certificate
+  return Uint8List.fromList(cert);
 }
