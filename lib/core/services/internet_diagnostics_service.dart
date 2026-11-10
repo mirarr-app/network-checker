@@ -1989,19 +1989,47 @@ class IpGeoInfo {
   final String cityName;
   final String ispName;
 
+  /// Region/state name (e.g. "California"), may be unknown.
+  final String regionName;
+
+  /// Autonomous System Number as reported by the API (e.g. "15169").
+  final String asn;
+
+  /// Organization that owns the ASN (e.g. "Google LLC").
+  final String asnOrganization;
+
+  /// Whether the API flags this IP as a known proxy.
+  final bool isProxy;
+
+  /// First timezone reported for the IP (e.g. "America/Los_Angeles").
+  final String timeZone;
+
   IpGeoInfo({
     required this.ipAddress,
     this.countryName = 'Unknown Country',
     this.cityName = 'Unknown City',
     this.ispName = 'Unknown ISP',
+    this.regionName = 'Unknown Region',
+    this.asn = '',
+    this.asnOrganization = '',
+    this.isProxy = false,
+    this.timeZone = '',
   });
 
   factory IpGeoInfo.fromJson(Map<String, dynamic> json) {
+    final timeZones = json['timeZones'];
     return IpGeoInfo(
       ipAddress: json['ipAddress'] as String? ?? '',
       countryName: json['countryName'] as String? ?? 'Unknown Country',
       cityName: json['cityName'] as String? ?? 'Unknown City',
       ispName: json['asName'] as String? ?? 'Unknown ISP',
+      regionName: json['regionName'] as String? ?? 'Unknown Region',
+      asn: json['asn']?.toString() ?? '',
+      asnOrganization: json['asnOrganization'] as String? ?? '',
+      isProxy: json['isProxy'] as bool? ?? false,
+      timeZone: timeZones is List && timeZones.isNotEmpty
+          ? timeZones.first.toString()
+          : '',
     );
   }
 
