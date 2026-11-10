@@ -1,4 +1,4 @@
-import '../../core/services/ip_info_service.dart';
+import '../../../core/services/ip_info_service.dart';
 
 /// Target lists for the IP info section, mirroring the website's split-routing
 /// and connectivity test lists (ipfinal.com).

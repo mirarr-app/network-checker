@@ -396,7 +396,7 @@ class IpInfoService {
       );
     }
 
-    if (resolved == null || resolved.isEmpty) {
+    if (resolved.isEmpty) {
       stopwatch.stop();
       return SplitRouteResult(
         name: target.name,
