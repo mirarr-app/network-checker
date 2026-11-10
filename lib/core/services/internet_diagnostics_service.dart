@@ -660,7 +660,40 @@ class InternetDiagnosticsService {
       }
     } catch (_) {}
 
-    // 2. Try freeipapi.com
+    // 2. Try ipwho.is (reliable, keyless HTTPS: returns ASN, org, isp, country, city)
+    try {
+      final response = await http
+          .get(Uri.parse('https://ipwho.is/$ip'))
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic> && data['success'] == true) {
+          final conn = data['connection'] is Map<String, dynamic>
+              ? data['connection'] as Map<String, dynamic>
+              : const <String, dynamic>{};
+          final tz = data['timezone'] is Map<String, dynamic>
+              ? (data['timezone']['id']?.toString() ?? '')
+              : (data['timezone']?.toString() ?? '');
+          final asnNum = conn['asn']?.toString() ?? '';
+          final asnStr = asnNum.isNotEmpty
+              ? (asnNum.startsWith('AS') ? asnNum : 'AS$asnNum')
+              : '';
+          return IpGeoInfo(
+            ipAddress: data['ip']?.toString() ?? ip,
+            countryName: data['country']?.toString() ?? 'Unknown Country',
+            cityName: data['city']?.toString() ?? 'Unknown City',
+            ispName: conn['isp']?.toString() ?? conn['org']?.toString() ?? 'Unknown ISP',
+            regionName: data['region']?.toString() ?? 'Unknown Region',
+            asn: asnStr,
+            asnOrganization: conn['org']?.toString() ?? '',
+            isProxy: false,
+            timeZone: tz,
+          );
+        }
+      }
+    } catch (_) {}
+
+    // 3. Try freeipapi.com
     try {
       final response = await http
           .get(Uri.parse('https://freeipapi.com/api/json/$ip'))
@@ -668,20 +701,6 @@ class InternetDiagnosticsService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         return IpGeoInfo.fromJson(data);
-      }
-    } catch (_) {}
-
-    // 3. Try ip-api.com
-    try {
-      final response = await http
-          .get(Uri.parse(
-              'http://ip-api.com/json/$ip?fields=status,message,country,city,isp,org,as,asname,regionName,timezone,proxy,hosting,query'))
-          .timeout(const Duration(seconds: 5));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        if (data['status'] == 'success') {
-          return IpGeoInfo.fromJson(data);
-        }
       }
     } catch (e) {
       debugPrint('GeoIP lookup failed for $ip: $e');
@@ -2049,9 +2068,11 @@ class IpGeoInfo {
 
   factory IpGeoInfo.fromJson(Map<String, dynamic> json) {
     final timeZones = json['timeZones'];
+    final rawTz = json['timezone'] ?? json['timeZone'];
+    final tzFromMap = rawTz is Map ? (rawTz['id']?.toString() ?? '') : rawTz?.toString() ?? '';
     final timeZoneStr = timeZones is List && timeZones.isNotEmpty
         ? timeZones.first.toString()
-        : (json['timezone'] as String? ?? json['timeZone'] as String? ?? '');
+        : tzFromMap;
 
     final rawAsn = json['asn']?.toString() ??
         (json['as'] != null

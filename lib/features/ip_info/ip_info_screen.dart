@@ -121,7 +121,18 @@ class IpInfoScreen extends StatelessWidget {
       centerIcon = Icons.sync;
     } else if (controller.isCompleted) {
       final purity = controller.purity;
-      if (purity != null && purity.verdict == 'Unverified') {
+      final verdict = purity?.verdict ?? '';
+      final isBogon = verdict.toLowerCase().contains('bogon') ||
+          verdict.toLowerCase().contains('private') ||
+          verdict.toLowerCase().contains('reserved');
+      final isUnverified = verdict.toLowerCase().contains('unverified');
+
+      if (isBogon) {
+        pulseColor = colorScheme.outline;
+        statusTitle = 'Private / Bogon IP';
+        statusDesc = 'Private or reserved IP address (not publicly routable)';
+        centerIcon = Icons.lan_rounded;
+      } else if (isUnverified) {
         pulseColor = colorScheme.outlineVariant;
         statusTitle = 'Unverified IP';
         statusDesc = 'Purity signals could not be verified';
@@ -215,41 +226,54 @@ class IpInfoScreen extends StatelessWidget {
         ),
         if (publicIp != null) ...[
           const SizedBox(height: 14),
-          InkWell(
-            onTap: () {
-              Clipboard.setData(ClipboardData(text: publicIp));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('IP copied to clipboard')),
-              );
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: InkWell(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: publicIp));
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    const SnackBar(content: Text('IP copied to clipboard')),
+                  );
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 380),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
                 ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    publicIp,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'monospace',
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        publicIp,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.copy_rounded,
-                    size: 16,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.copy_rounded,
+                      size: 16,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -507,29 +531,49 @@ class IpInfoScreen extends StatelessWidget {
         title: 'IP PURITY CHECK',
         subtitle: controller.isRunning && controller.completedSections >= 1
             ? 'Scoring your IP...'
-            : 'Run the check to score your IP',
+            : (controller.isCompleted
+                ? 'Purity check unavailable'
+                : 'Run the check to score your IP'),
         child: _buildEmptySection(
           context,
-          controller.lookup == null
-              ? 'Needs your public IP first'
-              : 'Checking Tor list, proxy flags and ASN...',
+          controller.isCompleted
+              ? 'Purity check could not be completed'
+              : (controller.lookup == null
+                  ? 'Needs your public IP first'
+                  : 'Checking Tor list, proxy flags and ASN...'),
         ),
       ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1, end: 0);
     }
 
-    final Color scoreColor = purity.verdict == 'Unverified'
-        ? colorScheme.outline
-        : (purity.score >= 80
-            ? colorScheme.success
-            : (purity.score >= 50 ? colorScheme.warning : colorScheme.error));
+    final verdict = purity.verdict;
+    final isBogon = verdict.toLowerCase().contains('bogon') ||
+        verdict.toLowerCase().contains('private') ||
+        verdict.toLowerCase().contains('reserved');
+    final isUnverified = verdict.toLowerCase().contains('unverified');
 
-    final String verdictDesc = purity.verdict == 'Unverified'
-        ? 'Purity signals could not be reached. Reputation is unverified.'
-        : (purity.score >= 80
-            ? 'Looks like a normal residential IP. Services are unlikely to flag it.'
-            : (purity.score >= 50
-                ? 'Some signals look unusual. A few services may challenge or limit this IP.'
-                : 'Strong signals of a proxy, datacenter or Tor exit. Expect blocks and captchas.'));
+    final Color scoreColor;
+    final String verdictDesc;
+    if (isBogon) {
+      scoreColor = colorScheme.outline;
+      verdictDesc =
+          'This is a private, local, or reserved (bogon) IP address. External purity checks do not apply.';
+    } else if (isUnverified) {
+      scoreColor = colorScheme.outline;
+      verdictDesc =
+          'Purity signals could not be reached. Reputation is unverified.';
+    } else if (purity.score >= 80) {
+      scoreColor = colorScheme.success;
+      verdictDesc =
+          'Looks like a normal residential IP. Services are unlikely to flag it.';
+    } else if (purity.score >= 50) {
+      scoreColor = colorScheme.warning;
+      verdictDesc =
+          'Some signals look unusual. A few services may challenge or limit this IP.';
+    } else {
+      scoreColor = colorScheme.error;
+      verdictDesc =
+          'Strong signals of a proxy, datacenter or Tor exit. Expect blocks and captchas.';
+    }
 
     return _buildSectionCard(
       context,
@@ -540,25 +584,7 @@ class IpInfoScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: scoreColor.withValues(alpha: 0.1),
-                  border: Border.all(color: scoreColor, width: 2.5),
-                ),
-                child: Center(
-                  child: Text(
-                    '${purity.score}',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: scoreColor,
-                    ),
-                  ),
-                ),
-              ),
+              _buildPurityScore(context, purity, scoreColor),
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
@@ -572,66 +598,136 @@ class IpInfoScreen extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          ...purity.factors.map((factor) {
-            final IconData icon;
-            final Color iconColor;
-            if (factor.passed == null) {
-              icon = Icons.help_outline_rounded;
-              iconColor = colorScheme.onSurfaceVariant;
-            } else if (factor.passed!) {
-              icon = Icons.check_circle_rounded;
-              iconColor = colorScheme.success;
-            } else {
-              icon = Icons.cancel_rounded;
-              iconColor = colorScheme.error;
-            }
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(icon, size: 20, color: iconColor),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          factor.name,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
+          if (purity.factors.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ...purity.factors.map((factor) {
+              final IconData icon;
+              final Color iconColor;
+              if (factor.passed == null) {
+                icon = Icons.help_outline_rounded;
+                iconColor = colorScheme.onSurfaceVariant;
+              } else if (factor.passed!) {
+                icon = Icons.check_circle_rounded;
+                iconColor = colorScheme.success;
+              } else {
+                icon = Icons.cancel_rounded;
+                iconColor = colorScheme.error;
+              }
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(icon, size: 20, color: iconColor),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            factor.name,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        Text(
-                          factor.detail,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: colorScheme.onSurfaceVariant
-                                .withValues(alpha: 0.8),
+                          Text(
+                            factor.detail,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colorScheme.onSurfaceVariant
+                                  .withValues(alpha: 0.8),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (factor.passed == false)
-                    Text(
-                      '-${factor.penalty}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.error,
-                        fontFamily: 'monospace',
+                        ],
                       ),
                     ),
-                ],
-              ),
-            );
-          }),
+                    if (factor.passed == false)
+                      Text(
+                        '-${factor.penalty}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.error,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }),
+          ],
         ],
       ),
     ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1, end: 0);
+  }
+
+  Widget _buildPurityScore(
+    BuildContext context,
+    dynamic source, [
+    Color? color,
+  ]) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final IpPurityResult? purity = source is IpInfoController
+        ? source.purity
+        : (source is IpPurityResult ? source : null);
+
+    final String verdict = purity?.verdict ??
+        (source is String
+            ? source
+            : (source is PurityVerdict ? source.name : ''));
+    final int score = purity?.score ?? 0;
+
+    final isBogon = source == PurityVerdict.bogon ||
+        verdict.toLowerCase().contains('bogon') ||
+        verdict.toLowerCase().contains('private') ||
+        verdict.toLowerCase().contains('reserved');
+    final isUnverified = source == PurityVerdict.unverified ||
+        verdict.toLowerCase().contains('unverified');
+
+    final effectiveColor = color ??
+        (isBogon || isUnverified
+            ? colorScheme.outline
+            : (score >= 80
+                ? colorScheme.success
+                : (score >= 50 ? colorScheme.warning : colorScheme.error)));
+
+    final Widget badgeContent;
+    if (isBogon) {
+      badgeContent = Icon(
+        Icons.lan_rounded,
+        size: 32,
+        color: effectiveColor,
+      );
+    } else if (isUnverified) {
+      badgeContent = Icon(
+        Icons.help_outline_rounded,
+        size: 32,
+        color: effectiveColor,
+      );
+    } else {
+      badgeContent = Text(
+        '$score',
+        style: TextStyle(
+          fontSize: 26,
+          fontWeight: FontWeight.bold,
+          color: effectiveColor,
+        ),
+      );
+    }
+
+    return Container(
+      width: 72,
+      height: 72,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: effectiveColor.withValues(alpha: 0.1),
+        border: Border.all(color: effectiveColor, width: 2.5),
+      ),
+      child: Center(
+        child: badgeContent,
+      ),
+    );
   }
 
   // ── 4. Split routing ───────────────────────────────────────────────────
@@ -641,8 +737,7 @@ class IpInfoScreen extends StatelessWidget {
     IpInfoController controller,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
-    final results = [...controller.splitResults]
-      ..sort((a, b) => a.name.compareTo(b.name));
+    final results = controller.splitResults;
     final total = IpInfoTargets.splitRouteTargets.length;
 
     final subtitle = controller.isTestingSplit
@@ -838,8 +933,7 @@ class IpInfoScreen extends StatelessWidget {
     IpInfoController controller,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
-    final results = [...controller.latencyResults]
-      ..sort((a, b) => a.name.compareTo(b.name));
+    final results = controller.latencyResults;
     final total = IpInfoTargets.latencyTargets.length;
 
     final subtitle = controller.isMeasuringLatency
@@ -1300,8 +1394,10 @@ class IpInfoScreen extends StatelessWidget {
                     'whether anything looks like a leak. Be straight to '
                     'the point.';
                 Clipboard.setData(ClipboardData(text: '$report$promptText'));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    SnackBar(
                     content: Row(
                       children: [
                         Icon(

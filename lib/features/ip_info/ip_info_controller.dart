@@ -7,6 +7,32 @@ import 'data/ip_info_targets.dart';
 /// Current state of the IP info engine.
 enum IpInfoStatus { idle, running, completed }
 
+/// Purity verdict classification bands.
+enum PurityVerdict {
+  clean,
+  suspicious,
+  flagged,
+  unverified,
+  bogon;
+
+  static PurityVerdict fromString(String verdict) {
+    final v = verdict.toLowerCase();
+    if (v.contains('bogon') || v.contains('private') || v.contains('reserved')) {
+      return PurityVerdict.bogon;
+    }
+    if (v.contains('unverified')) {
+      return PurityVerdict.unverified;
+    }
+    if (v.contains('clean')) {
+      return PurityVerdict.clean;
+    }
+    if (v.contains('suspicious')) {
+      return PurityVerdict.suspicious;
+    }
+    return PurityVerdict.flagged;
+  }
+}
+
 /// Coordinates the IP info checks and exposes their state to the UI.
 /// Follows the same pattern as [InternetDiagnosticsController]: sections run
 /// sequentially, results stream in incrementally, and starting a new run
@@ -14,6 +40,22 @@ enum IpInfoStatus { idle, running, completed }
 class IpInfoController extends ChangeNotifier {
   IpInfoStatus _status = IpInfoStatus.idle;
   int _currentRunId = 0;
+  bool _disposed = false;
+
+  bool get isDisposed => _disposed;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
 
   IpLookupInfo? _lookup;
   IpPurityResult? _purity;
@@ -41,6 +83,8 @@ class IpInfoController extends ChangeNotifier {
 
   IpLookupInfo? get lookup => _lookup;
   IpPurityResult? get purity => _purity;
+  PurityVerdict? get purityVerdict =>
+      _purity == null ? null : PurityVerdict.fromString(_purity!.verdict);
 
   List<SplitRouteResult> get splitResults => _splitResults;
   bool get isTestingSplit => _isTestingSplit;
@@ -83,6 +127,18 @@ class IpInfoController extends ChangeNotifier {
     return (latencies.reduce((a, b) => a + b) / latencies.length).round();
   }
 
+  void _addSplitResult(SplitRouteResult result) {
+    final list = [..._splitResults, result]
+      ..sort((a, b) => a.name.compareTo(b.name));
+    _splitResults = list;
+  }
+
+  void _addLatencyResult(LatencyResult result) {
+    final list = [..._latencyResults, result]
+      ..sort((a, b) => a.name.compareTo(b.name));
+    _latencyResults = list;
+  }
+
   /// Runs the whole IP info suite: lookup, purity, split routing, latency,
   /// then the environment checks.
   Future<void> runIpInfoSuite() async {
@@ -107,101 +163,110 @@ class IpInfoController extends ChangeNotifier {
     _isCheckingEnvironment = false;
     notifyListeners();
 
-    // 1. IP lookup (public IPv4/IPv6 + geolocation).
-    _lookup = await IpInfoService.fetchIpLookup();
-    if (runId != _currentRunId) return;
-    _completedSections++;
-    notifyListeners();
-
-    // 2. IP purity check for the primary IP.
-    final primaryIp = _lookup!.primaryIp;
-    if (primaryIp != null) {
-      _purity = await IpInfoService.checkIpPurity(
-        ip: primaryIp,
-        geo: _lookup!.geo,
-      );
-    }
-    if (runId != _currentRunId) return;
-    _completedSections++;
-    notifyListeners();
-
-    // 3. Split-routing test (results stream in as each domain finishes).
-    _isTestingSplit = true;
-    notifyListeners();
-    await IpInfoService.testSplitRouting(
-      targets: IpInfoTargets.splitRouteTargets,
-      publicIp: primaryIp,
-      onResult: (result) {
-        if (runId != _currentRunId) return;
-        _splitResults = [..._splitResults, result];
-        notifyListeners();
-      },
-    );
-    if (runId != _currentRunId) return;
-    _isTestingSplit = false;
-    _completedSections++;
-    notifyListeners();
-
-    // 4. Connectivity latency (median of 3 attempts per service).
-    _isMeasuringLatency = true;
-    notifyListeners();
-    final latencyFutures = IpInfoTargets.latencyTargets.map((target) async {
-      final result = await IpInfoService.measureLatencyForTarget(target);
-      if (runId != _currentRunId) return;
-      _latencyResults = [..._latencyResults, result];
+    try {
+      // 1. IP lookup (public IPv4/IPv6 + geolocation).
+      _lookup = await IpInfoService.fetchIpLookup();
+      if (_disposed || runId != _currentRunId) return;
+      _completedSections++;
       notifyListeners();
-    });
-    await Future.wait(latencyFutures);
-    if (runId != _currentRunId) return;
-    _isMeasuringLatency = false;
-    _completedSections++;
-    notifyListeners();
 
-    // 5. Environment checks (run concurrently, applied as they finish).
-    _isCheckingEnvironment = true;
-    notifyListeners();
+      // 2. IP purity check for the primary IP.
+      final primaryIp = _lookup?.primaryIp;
+      if (primaryIp != null) {
+        _purity = await IpInfoService.checkIpPurity(
+          ip: primaryIp,
+          geo: _lookup?.geo,
+        );
+      }
+      if (_disposed || runId != _currentRunId) return;
+      _completedSections++;
+      notifyListeners();
 
-    final environmentFutures = <Future<void>>[
-      IpInfoService.checkDnsLeak().then((result) {
-        if (runId != _currentRunId) return;
-        _dnsLeak = result;
+      // 3. Split-routing test (results stream in as each domain finishes).
+      _isTestingSplit = true;
+      notifyListeners();
+      await IpInfoService.testSplitRouting(
+        targets: IpInfoTargets.splitRouteTargets,
+        publicIp: primaryIp,
+        onResult: (result) {
+          if (_disposed || runId != _currentRunId) return;
+          _addSplitResult(result);
+          notifyListeners();
+        },
+      );
+      if (_disposed || runId != _currentRunId) return;
+      _isTestingSplit = false;
+      _completedSections++;
+      notifyListeners();
+
+      // 4. Connectivity latency (median of 3 attempts per service).
+      _isMeasuringLatency = true;
+      notifyListeners();
+      final latencyFutures = IpInfoTargets.latencyTargets.map((target) async {
+        final result = await IpInfoService.measureLatencyForTarget(target);
+        if (_disposed || runId != _currentRunId) return;
+        _addLatencyResult(result);
         notifyListeners();
-      }),
-      IpInfoService.checkIpLeak().then((result) {
-        if (runId != _currentRunId) return;
-        _ipLeak = result;
-        notifyListeners();
-      }),
-      IpInfoService.checkCloudflare().then((result) {
-        if (runId != _currentRunId) return;
-        _cloudflare = result;
-        notifyListeners();
-      }),
-      Future.wait(
-        IpInfoTargets.globalPingTargets.map(
-          IpInfoService.measureGlobalPing,
-        ),
-      ).then((results) {
-        if (runId != _currentRunId) return;
-        _globalPingResults = results;
-        notifyListeners();
-      }),
-    ];
-    if (primaryIp != null) {
-      environmentFutures.add(
-        IpInfoService.lookupWhois(primaryIp).then((result) {
-          if (runId != _currentRunId) return;
-          _whois = result;
+      });
+      await Future.wait(latencyFutures);
+      if (_disposed || runId != _currentRunId) return;
+      _isMeasuringLatency = false;
+      _completedSections++;
+      notifyListeners();
+
+      // 5. Environment checks (run concurrently, applied as they finish).
+      _isCheckingEnvironment = true;
+      notifyListeners();
+
+      final environmentFutures = <Future<void>>[
+        IpInfoService.checkDnsLeak().then((result) {
+          if (_disposed || runId != _currentRunId) return;
+          _dnsLeak = result;
           notifyListeners();
         }),
-      );
+        IpInfoService.checkIpLeak().then((result) {
+          if (_disposed || runId != _currentRunId) return;
+          _ipLeak = result;
+          notifyListeners();
+        }),
+        IpInfoService.checkCloudflare().then((result) {
+          if (_disposed || runId != _currentRunId) return;
+          _cloudflare = result;
+          notifyListeners();
+        }),
+        Future.wait(
+          IpInfoTargets.globalPingTargets.map(
+            IpInfoService.measureGlobalPing,
+          ),
+        ).then((results) {
+          if (_disposed || runId != _currentRunId) return;
+          _globalPingResults = results;
+          notifyListeners();
+        }),
+      ];
+      if (primaryIp != null) {
+        environmentFutures.add(
+          IpInfoService.lookupWhois(primaryIp).then((result) {
+            if (_disposed || runId != _currentRunId) return;
+            _whois = result;
+            notifyListeners();
+          }),
+        );
+      }
+      await Future.wait(environmentFutures);
+      if (_disposed || runId != _currentRunId) return;
+      _completedSections++;
+    } catch (e, st) {
+      debugPrint('Error running IP info suite: $e\n$st');
+    } finally {
+      if (!_disposed && runId == _currentRunId) {
+        _status = IpInfoStatus.completed;
+        _isTestingSplit = false;
+        _isMeasuringLatency = false;
+        _isCheckingEnvironment = false;
+        notifyListeners();
+      }
     }
-    await Future.wait(environmentFutures);
-    if (runId != _currentRunId) return;
-    _isCheckingEnvironment = false;
-    _completedSections++;
-    _status = IpInfoStatus.completed;
-    notifyListeners();
   }
 
   /// Resets the engine to its idle state, cancelling any active run.

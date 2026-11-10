@@ -88,62 +88,201 @@ class IpInfoService {
 
   // ── IP purity ──────────────────────────────────────────────────────────
 
+  /// Standard verdicts for IP purity evaluation.
+  static const String verdictClean = 'Clean';
+  static const String verdictSuspicious = 'Suspicious';
+  static const String verdictFlagged = 'Flagged';
+  static const String verdictUnverified = 'Unverified';
+  static const String verdictPrivateOrBogon = 'Private / Bogon';
+
+  /// Returns whether [ip] is a bogon, loopback, link-local, or private address.
+  /// Checks IPv4 private ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16,
+  /// 127.0.0.0/8, 100.64.0.0/10 CGNAT, 0.0.0.0/8, 169.254.0.0/16) and IPv6
+  /// loopback/link-local/unique-local (fc00::/7, fe80::/10, ::1, ::).
+  static bool isBogonOrPrivate(String ip) {
+    final trimmed = ip.trim();
+    if (trimmed.isEmpty) return false;
+
+    final parsed = InternetAddress.tryParse(trimmed);
+    if (parsed == null) return false;
+
+    if (parsed.type == InternetAddressType.IPv4) {
+      final bytes = parsed.rawAddress;
+      final b0 = bytes[0];
+      final b1 = bytes[1];
+
+      // 0.0.0.0/8 (Current network / "this host")
+      if (b0 == 0) return true;
+
+      // 10.0.0.0/8 (Private)
+      if (b0 == 10) return true;
+
+      // 100.64.0.0/10 (Shared Address Space / CGNAT: 100.64.0.0 – 100.127.255.255)
+      if (b0 == 100 && b1 >= 64 && b1 <= 127) return true;
+
+      // 127.0.0.0/8 (Loopback)
+      if (b0 == 127) return true;
+
+      // 169.254.0.0/16 (Link-local)
+      if (b0 == 169 && b1 == 254) return true;
+
+      // 172.16.0.0/12 (Private: 172.16.0.0 – 172.31.255.255)
+      if (b0 == 172 && b1 >= 16 && b1 <= 31) return true;
+
+      // 192.168.0.0/16 (Private)
+      if (b0 == 192 && b1 == 168) return true;
+
+      return false;
+    }
+
+    if (parsed.type == InternetAddressType.IPv6) {
+      final bytes = parsed.rawAddress;
+
+      // :: (Unspecified)
+      if (bytes.every((b) => b == 0)) return true;
+
+      // ::1 (Loopback)
+      if (parsed.isLoopback ||
+          (bytes.sublist(0, 15).every((b) => b == 0) && bytes[15] == 1)) {
+        return true;
+      }
+
+      // fe80::/10 (Link-local)
+      if (parsed.isLinkLocal ||
+          (bytes[0] == 0xFE && (bytes[1] & 0xC0) == 0x80)) {
+        return true;
+      }
+
+      // fc00::/7 (Unique-local: fc00:: – fdff::)
+      if ((bytes[0] & 0xFE) == 0xFC) return true;
+
+      // IPv4-mapped IPv6 address (::ffff:x.x.x.x)
+      if (bytes.sublist(0, 10).every((b) => b == 0) &&
+          bytes[10] == 0xFF &&
+          bytes[11] == 0xFF) {
+        return isBogonOrPrivate(
+          '${bytes[12]}.${bytes[13]}.${bytes[14]}.${bytes[15]}',
+        );
+      }
+
+      return false;
+    }
+
+    return false;
+  }
+
   /// Fetches rich IP intelligence from keyless public APIs.
-  /// Tries ip.net.coffee first, then falls back to ip-api.com.
-  static Future<Map<String, dynamic>?> _fetchIpIntelligence(String ip) async {
-    // 1. ip.net.coffee (specialized in IP purity, VPN, proxy, datacenter, threats)
-    try {
-      final response = await http
-          .get(
-            Uri.parse('https://ip.net.coffee/api/ip/lookup/$ip'),
-            headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'},
-          )
-          .timeout(const Duration(seconds: 5));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data is Map<String, dynamic> && data['ip'] != null) {
-          return data;
-        }
-      }
-    } catch (_) {}
+  /// Tries ip.net.coffee first, then falls back to ipwho.is and freeipapi.com.
+  static Future<Map<String, dynamic>?> _fetchIpIntelligence(
+    String ip, {
+    http.Client? client,
+  }) async {
+    final httpClient = client ?? http.Client();
+    final shouldCloseClient = client == null;
 
-    // 2. ip-api.com fallback
     try {
-      final response = await http
-          .get(Uri.parse(
-              'http://ip-api.com/json/$ip?fields=status,message,country,city,isp,org,as,asname,regionName,timezone,proxy,hosting,mobile,reverse,query'))
-          .timeout(const Duration(seconds: 5));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data is Map<String, dynamic> && data['status'] == 'success') {
-          return {
-            'ip': data['query'],
-            'is_datacenter': data['hosting'] == true,
-            'is_vpn': false,
-            'is_proxy': data['proxy'] == true,
-            'is_mobile': data['mobile'] == true,
-            'company_name': data['org'],
-            'company_type': data['hosting'] == true ? 'hosting' : 'isp',
-            'asOrganization': data['org'] ?? data['asname'],
-            'asn': data['as'],
-            'rdns': data['reverse'],
-            'isp': data['isp'],
-          };
+      // 1. ip.net.coffee (specialized in IP purity, VPN, proxy, datacenter, threats)
+      try {
+        final response = await httpClient
+            .get(
+              Uri.parse('https://ip.net.coffee/api/ip/lookup/$ip'),
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+              },
+            )
+            .timeout(const Duration(seconds: 5));
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          if (data is Map<String, dynamic> && data['ip'] != null) {
+            return data;
+          }
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
 
-    return null;
+      // 2. ipwho.is fallback (reliable, keyless HTTPS: returns ASN, org, isp, country, city)
+      try {
+        final response = await httpClient
+            .get(Uri.parse('https://ipwho.is/$ip'))
+            .timeout(const Duration(seconds: 5));
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          if (data is Map<String, dynamic> && data['success'] == true) {
+            final connection = data['connection'] is Map<String, dynamic>
+                ? data['connection'] as Map<String, dynamic>
+                : const <String, dynamic>{};
+            final asnNum = connection['asn']?.toString() ?? '';
+            final asnStr = asnNum.isNotEmpty
+                ? (asnNum.startsWith('AS') ? asnNum : 'AS$asnNum')
+                : '';
+            final org = connection['org']?.toString() ?? '';
+            final isp = connection['isp']?.toString() ?? org;
+            return {
+              'ip': data['ip']?.toString() ?? ip,
+              'is_datacenter': false,
+              'is_vpn': false,
+              'is_proxy': false,
+              'is_mobile': false,
+              'company_name': org.isNotEmpty ? org : isp,
+              'company_type': 'isp',
+              'asOrganization': org,
+              'asn': asnStr,
+              'isp': isp,
+              'country': data['country'],
+              'city': data['city'],
+              'region': data['region'],
+            };
+          }
+        }
+      } catch (_) {}
+
+      // 3. freeipapi.com fallback
+      try {
+        final response = await httpClient
+            .get(Uri.parse('https://freeipapi.com/api/json/$ip'))
+            .timeout(const Duration(seconds: 5));
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          if (data is Map<String, dynamic> &&
+              (data['ipAddress'] != null || data['ip'] != null)) {
+            final asnOrg = data['asnOrganization']?.toString() ?? '';
+            return {
+              'ip': data['ipAddress']?.toString() ??
+                  data['ip']?.toString() ??
+                  ip,
+              'is_datacenter': false,
+              'is_vpn': false,
+              'is_proxy': data['isProxy'] == true,
+              'is_mobile': false,
+              'company_name': asnOrg,
+              'company_type': 'isp',
+              'asOrganization': asnOrg,
+              'asn': data['asn']?.toString() ?? '',
+              'isp': asnOrg,
+              'country': data['countryName'] ?? data['country'],
+              'city': data['cityName'] ?? data['city'],
+              'region': data['regionName'] ?? data['region'],
+            };
+          }
+        }
+      } catch (_) {}
+
+      return null;
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
   }
 
   /// Scores an IP from 0 (flagged) to 100 (clean) using verified signals.
+  /// Requires at least 2 verified factors ([PurityFactor.passed] != null) to compute a score.
+  /// If fewer than 2 factors are verified, returns 0 (unverified score).
   /// Each factor that fails subtracts its penalty; factors that could not
   /// be checked ([PurityFactor.passed] == null) subtract nothing.
-  /// If no factors could be verified, returns 0.
   static int computePurityScore(List<PurityFactor> factors) {
     if (factors.isEmpty) return 0;
     final verified = factors.where((factor) => factor.passed != null);
-    if (verified.isEmpty) return 0;
+    if (verified.length < 2) return 0;
 
     var score = 100;
     for (final factor in factors) {
@@ -152,11 +291,29 @@ class IpInfoService {
     return score.clamp(0, 100);
   }
 
-  static String purityVerdict(int score, {bool hasVerifiedFactors = true}) {
-    if (!hasVerifiedFactors) return 'Unverified';
-    if (score >= 80) return 'Clean';
-    if (score >= 50) return 'Suspicious';
-    return 'Flagged';
+  /// Maps a purity score to a human-readable verdict.
+  /// If verified factors < 2 (or [hasVerifiedFactors] is false), returns 'Unverified'.
+  static String purityVerdict(
+    int score, {
+    bool hasVerifiedFactors = true,
+    dynamic verifiedFactors,
+    int? verifiedCount,
+  }) {
+    int? count = verifiedCount;
+    if (verifiedFactors is int) {
+      count = verifiedFactors;
+    } else if (verifiedFactors is Iterable<PurityFactor>) {
+      count = verifiedFactors.where((f) => f.passed != null).length;
+    } else if (verifiedFactors is bool) {
+      hasVerifiedFactors = verifiedFactors;
+    }
+
+    if (!hasVerifiedFactors || (count != null && count < 2)) {
+      return verdictUnverified;
+    }
+    if (score >= 80) return verdictClean;
+    if (score >= 50) return verdictSuspicious;
+    return verdictFlagged;
   }
 
   /// Runs the purity checks for [ip]. Combines keyless intelligence APIs,
@@ -164,14 +321,32 @@ class IpInfoService {
   static Future<IpPurityResult> checkIpPurity({
     required String ip,
     IpGeoInfo? geo,
+    http.Client? client,
   }) async {
+    // 0. Bogon / private IP check: skip public external HTTP lookups completely.
+    if (isBogonOrPrivate(ip)) {
+      return const IpPurityResult(
+        score: 100,
+        verdict: verdictPrivateOrBogon,
+        factors: [
+          PurityFactor(
+            name: 'Private / Bogon IP',
+            passed: true,
+            detail:
+                'This IP is a local, private, or unroutable address. External reputation and threat lookups are skipped.',
+            penalty: 0,
+          ),
+        ],
+      );
+    }
+
     final factors = <PurityFactor>[];
 
     // Fetch multi-source IP intelligence (VPN, proxy, datacenter, threats)
-    final intel = await _fetchIpIntelligence(ip);
+    final intel = await _fetchIpIntelligence(ip, client: client);
 
     // 1. Tor exit node membership.
-    final torExitIps = await _fetchTorExitList();
+    final torExitIps = await _fetchTorExitList(client: client);
     final bool isTorIntel = intel?['is_tor'] == true;
     if (torExitIps != null) {
       final isExit = torExitIps.contains(ip) || isTorIntel;
@@ -276,11 +451,12 @@ class IpInfoService {
       dcDetail = 'Datacenter / hosting status unverified';
     }
 
+    final hasAsnInfo = asnOrg.isNotEmpty || intel != null || geo != null;
     factors.add(
       PurityFactor(
         name: 'Datacenter / hosting ASN',
-        passed: (intel == null && geo == null && asnOrg.isEmpty) ? null : !isDcFlag,
-        detail: (intel == null && geo == null && asnOrg.isEmpty)
+        passed: !hasAsnInfo ? null : !isDcFlag,
+        detail: !hasAsnInfo
             ? 'Datacenter / hosting status unverified'
             : dcDetail,
         penalty: 25,
@@ -293,8 +469,14 @@ class IpInfoService {
       final threats = (intel['intelligence'] is Map &&
               intel['intelligence']['threats'] is List)
           ? (intel['intelligence']['threats'] as List)
-          : null;
+          : (intel['threats'] is List ? (intel['threats'] as List) : null);
       final abuserScore = intel['abuser_score']?.toString();
+
+      final hasExplicitThreatIntel = intel.containsKey('is_abuser') ||
+          intel.containsKey('threats') ||
+          (intel['intelligence'] is Map &&
+              (intel['intelligence'] as Map).containsKey('threats')) ||
+          intel.containsKey('abuser_score');
 
       if (isAbuser || (threats != null && threats.isNotEmpty)) {
         final threatLabels = threats != null
@@ -313,7 +495,7 @@ class IpInfoService {
             penalty: 20,
           ),
         );
-      } else {
+      } else if (hasExplicitThreatIntel) {
         factors.add(
           const PurityFactor(
             name: 'Threat / abuse history',
@@ -322,7 +504,26 @@ class IpInfoService {
             penalty: 20,
           ),
         );
+      } else {
+        factors.add(
+          const PurityFactor(
+            name: 'Threat / abuse history',
+            passed: null,
+            detail:
+                'Threat intelligence not provided by lookup source — not checked',
+            penalty: 20,
+          ),
+        );
       }
+    } else {
+      factors.add(
+        const PurityFactor(
+          name: 'Threat / abuse history',
+          passed: null,
+          detail: 'Threat intelligence unreachable — not checked',
+          penalty: 20,
+        ),
+      );
     }
 
     // 5. Reverse DNS: server/datacenter-style PTR hostnames.
@@ -353,23 +554,26 @@ class IpInfoService {
       );
     }
 
-    final hasVerified = factors.any((factor) => factor.passed != null);
+    final verifiedCount =
+        factors.where((factor) => factor.passed != null).length;
     final score = computePurityScore(factors);
     return IpPurityResult(
       score: score,
-      verdict: purityVerdict(score, hasVerifiedFactors: hasVerified),
+      verdict: purityVerdict(score, verifiedFactors: verifiedCount),
       factors: factors,
     );
   }
 
-  static Future<Set<String>?> _fetchTorExitList() async {
+  static Future<Set<String>?> _fetchTorExitList({http.Client? client}) async {
     if (_torExitIps != null &&
         _torExitListFetchedAt != null &&
         DateTime.now().difference(_torExitListFetchedAt!).inMinutes < 60) {
       return _torExitIps;
     }
+    final httpClient = client ?? http.Client();
+    final shouldCloseClient = client == null;
     try {
-      final response = await http
+      final response = await httpClient
           .get(Uri.parse(_torExitListUrl))
           .timeout(const Duration(seconds: 8));
       if (response.statusCode == 200) {
@@ -383,8 +587,18 @@ class IpInfoService {
       }
     } catch (e) {
       debugPrint('IP info: Tor exit list fetch failed: $e');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
     }
     return null;
+  }
+
+  @visibleForTesting
+  static void resetTorExitListCache() {
+    _torExitIps = null;
+    _torExitListFetchedAt = null;
   }
 
   /// Whether an ASN organization name belongs to a hosting/cloud provider.
@@ -757,12 +971,16 @@ class IpInfoService {
       systemError = e.toString();
     }
 
-    final cloudflareIps = await _dohLookup(
-      'https://cloudflare-dns.com/dns-query?name=$testDomain&type=A',
-    );
-    final googleIps = await _dohLookup(
-      'https://dns.google/resolve?name=$testDomain&type=1',
-    );
+    final dohResults = await Future.wait([
+      _dohLookup(
+        'https://cloudflare-dns.com/dns-query?name=$testDomain&type=A',
+      ),
+      _dohLookup(
+        'https://dns.google/resolve?name=$testDomain&type=1',
+      ),
+    ]);
+    final cloudflareIps = dohResults[0];
+    final googleIps = dohResults[1];
 
     var verdict = 'No DNS leak detected';
     var tampered = false;
@@ -805,61 +1023,104 @@ class IpInfoService {
     );
   }
 
-  static Future<List<String>> _dohLookup(String url) async {
+  /// Parses DNS-over-HTTPS JSON response answers, filtering for A (type 1)
+  /// and AAAA (type 28) records, ignoring CNAME (type 5) and metadata.
+  static List<String> parseDohAnswers(Map<String, dynamic> json) {
+    final answers = json['Answer'];
+    if (answers is! List) return [];
+    return answers
+        .whereType<Map<String, dynamic>>()
+        .where((answer) {
+          final type = answer['type'];
+          return type == 1 || type == 28;
+        })
+        .map((answer) => answer['data']?.toString().trim() ?? '')
+        .where((data) => data.isNotEmpty && InternetAddress.tryParse(data) != null)
+        .toList();
+  }
+
+  static Future<List<String>> _dohLookup(
+    String url, {
+    http.Client? client,
+  }) async {
+    final httpClient = client ?? http.Client();
+    final shouldCloseClient = client == null;
     try {
-      final response = await http
+      final response = await httpClient
           .get(
             Uri.parse(url),
             headers: {'Accept': 'application/dns-json'},
           )
           .timeout(const Duration(seconds: 5));
       if (response.statusCode != 200) return [];
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final answers = data['Answer'];
-      if (answers is! List) return [];
-      return answers
-          .whereType<Map<String, dynamic>>()
-          .map((answer) => answer['data']?.toString() ?? '')
-          .where((value) => value.isNotEmpty)
-          .toList();
+      final data = jsonDecode(response.body);
+      if (data is! Map<String, dynamic>) return [];
+      return parseDohAnswers(data);
     } catch (_) {
       return [];
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
     }
   }
 
-  /// Native equivalent of a WebRTC leak test: WebRTC itself is a browser
-  /// technology, so instead this compares the public IP as seen by several
-  /// independent services (a mismatch means traffic exits through different
-  /// paths) and lists the device's local network interfaces — the addresses
-  /// a browser WebRTC check would expose.
-  static Future<IpLeakResult> checkIpLeak() async {
+  /// Native equivalent of a WebRTC leak test: compares the public IP as seen
+  /// by several independent services and lists local network interfaces.
+  /// Dual-stack aware: tracks IPv4 and IPv6 separately to avoid false alarms.
+  static Future<IpLeakResult> checkIpLeak({
+    http.Client? client,
+  }) async {
+    final httpClient = client ?? http.Client();
+    final shouldCloseClient = client == null;
+
     final seenBy = <String, String?>{};
-    const echoEndpoints = {
-      'ipify': 'https://api.ipify.org',
-      'icanhazip': 'https://icanhazip.com',
-      'ident.me': 'https://ident.me',
-    };
-    for (final entry in echoEndpoints.entries) {
+    final seenIpv4 = <String>{};
+    final seenIpv6 = <String>{};
+
+    Future<void> fetchEcho(String name, Uri uri, {bool isTrace = false}) async {
       try {
-        final response = await http
-            .get(Uri.parse(entry.value))
+        final response = await httpClient
+            .get(uri)
             .timeout(const Duration(seconds: 5));
-        seenBy[entry.key] =
-            response.statusCode == 200 ? response.body.trim() : null;
+        if (response.statusCode == 200) {
+          final rawIp = isTrace
+              ? parseCloudflareTrace(response.body)['ip']
+              : response.body.trim();
+          if (rawIp != null && rawIp.isNotEmpty) {
+            final parsed = InternetAddress.tryParse(rawIp);
+            if (parsed != null) {
+              seenBy[name] = parsed.address;
+              if (parsed.type == InternetAddressType.IPv4) {
+                seenIpv4.add(parsed.address);
+              } else if (parsed.type == InternetAddressType.IPv6) {
+                seenIpv6.add(parsed.address);
+              }
+              return;
+            }
+          }
+        }
+        seenBy[name] = null;
       } catch (_) {
-        seenBy[entry.key] = null;
+        seenBy[name] = null;
       }
     }
+
     try {
-      final response = await http
-          .get(Uri.parse('https://www.cloudflare.com/cdn-cgi/trace'))
-          .timeout(const Duration(seconds: 5));
-      if (response.statusCode == 200) {
-        seenBy['Cloudflare trace'] =
-            parseCloudflareTrace(response.body)['ip'];
+      await Future.wait([
+        fetchEcho('ipify', Uri.parse('https://api.ipify.org')),
+        fetchEcho('icanhazip', Uri.parse('https://icanhazip.com')),
+        fetchEcho('ident.me', Uri.parse('https://ident.me')),
+        fetchEcho(
+          'Cloudflare trace',
+          Uri.parse('https://www.cloudflare.com/cdn-cgi/trace'),
+          isTrace: true,
+        ),
+      ]);
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
       }
-    } catch (_) {
-      seenBy['Cloudflare trace'] = null;
     }
 
     final interfaces = <LocalInterfaceInfo>[];
@@ -883,11 +1144,17 @@ class IpInfoService {
       debugPrint('IP info: listing network interfaces failed: $e');
     }
 
-    final distinctIps = seenBy.values.whereType<String>().toSet();
+    // A leak is only flagged if distinctIpv4.length > 1 OR distinctIpv6.length > 1.
+    // If all queries fail (distinctIpv4.isEmpty && distinctIpv6.isEmpty), do NOT report a leak! Report consistent: true.
+    final bool hasLeak = seenIpv4.length > 1 || seenIpv6.length > 1;
+    final bool consistent = !hasLeak;
+
     return IpLeakResult(
       seenBy: seenBy,
-      consistent: distinctIps.length == 1,
+      consistent: consistent,
       localInterfaces: interfaces,
+      seenIpv4: seenIpv4,
+      seenIpv6: seenIpv6,
     );
   }
 
@@ -1258,6 +1525,9 @@ class LocalInterfaceInfo {
   });
 }
 
+/// Top-level convenience alias for [IpInfoService.isBogonOrPrivate].
+bool isBogonOrPrivate(String ip) => IpInfoService.isBogonOrPrivate(ip);
+
 /// Outcome of the IP leak check.
 class IpLeakResult {
   /// Public IP as seen by each echo service.
@@ -1267,10 +1537,18 @@ class IpLeakResult {
   final bool consistent;
   final List<LocalInterfaceInfo> localInterfaces;
 
+  /// Distinct IPv4 addresses seen across echo endpoints.
+  final Set<String>? seenIpv4;
+
+  /// Distinct IPv6 addresses seen across echo endpoints.
+  final Set<String>? seenIpv6;
+
   const IpLeakResult({
     required this.seenBy,
     required this.consistent,
     required this.localInterfaces,
+    this.seenIpv4,
+    this.seenIpv6,
   });
 }
 

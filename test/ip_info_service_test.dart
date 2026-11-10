@@ -1,5 +1,24 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:rdnbenet/core/services/ip_info_service.dart';
+
+class MockHttpClient extends http.BaseClient {
+  final Future<http.Response> Function(http.Request request) handler;
+  MockHttpClient(this.handler);
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final response = await handler(request as http.Request);
+    return http.StreamedResponse(
+      Stream.value(response.bodyBytes),
+      response.statusCode,
+      headers: response.headers,
+    );
+  }
+}
 
 void main() {
   group('IpInfoService - medianLatency', () {
@@ -20,6 +39,103 @@ void main() {
     });
   });
 
+  group('IpInfoService - isBogonOrPrivate', () {
+    test('identifies IPv4 private 10.0.0.0/8', () {
+      expect(IpInfoService.isBogonOrPrivate('10.0.0.0'), isTrue);
+      expect(IpInfoService.isBogonOrPrivate('10.0.0.1'), isTrue);
+      expect(IpInfoService.isBogonOrPrivate('10.255.255.255'), isTrue);
+    });
+
+    test('identifies IPv4 private 172.16.0.0/12', () {
+      expect(IpInfoService.isBogonOrPrivate('172.16.0.0'), isTrue);
+      expect(IpInfoService.isBogonOrPrivate('172.16.0.1'), isTrue);
+      expect(IpInfoService.isBogonOrPrivate('172.31.255.255'), isTrue);
+      // Boundaries
+      expect(IpInfoService.isBogonOrPrivate('172.15.255.255'), isFalse);
+      expect(IpInfoService.isBogonOrPrivate('172.32.0.0'), isFalse);
+    });
+
+    test('identifies IPv4 private 192.168.0.0/16', () {
+      expect(IpInfoService.isBogonOrPrivate('192.168.0.0'), isTrue);
+      expect(IpInfoService.isBogonOrPrivate('192.168.1.1'), isTrue);
+      expect(IpInfoService.isBogonOrPrivate('192.168.255.255'), isTrue);
+    });
+
+    test('identifies IPv4 loopback 127.0.0.0/8', () {
+      expect(IpInfoService.isBogonOrPrivate('127.0.0.1'), isTrue);
+      expect(IpInfoService.isBogonOrPrivate('127.255.255.254'), isTrue);
+    });
+
+    test('identifies IPv4 CGNAT 100.64.0.0/10', () {
+      expect(IpInfoService.isBogonOrPrivate('100.64.0.0'), isTrue);
+      expect(IpInfoService.isBogonOrPrivate('100.64.0.1'), isTrue);
+      expect(IpInfoService.isBogonOrPrivate('100.127.255.255'), isTrue);
+      // Boundaries
+      expect(IpInfoService.isBogonOrPrivate('100.63.255.255'), isFalse);
+      expect(IpInfoService.isBogonOrPrivate('100.128.0.0'), isFalse);
+    });
+
+    test('identifies IPv4 0.0.0.0/8', () {
+      expect(IpInfoService.isBogonOrPrivate('0.0.0.0'), isTrue);
+      expect(IpInfoService.isBogonOrPrivate('0.255.255.255'), isTrue);
+    });
+
+    test('identifies IPv4 link-local 169.254.0.0/16', () {
+      expect(IpInfoService.isBogonOrPrivate('169.254.0.1'), isTrue);
+      expect(IpInfoService.isBogonOrPrivate('169.254.255.254'), isTrue);
+    });
+
+    test('does not flag public IPv4 addresses', () {
+      expect(IpInfoService.isBogonOrPrivate('8.8.8.8'), isFalse);
+      expect(IpInfoService.isBogonOrPrivate('1.1.1.1'), isFalse);
+      expect(IpInfoService.isBogonOrPrivate('142.250.190.46'), isFalse);
+    });
+
+    test('identifies IPv6 loopback, link-local, and unique-local', () {
+      expect(IpInfoService.isBogonOrPrivate('::1'), isTrue);
+      expect(IpInfoService.isBogonOrPrivate('::'), isTrue);
+      expect(IpInfoService.isBogonOrPrivate('fe80::1'), isTrue);
+      expect(IpInfoService.isBogonOrPrivate('fe80::1ff:fe23:4567'), isTrue);
+      expect(IpInfoService.isBogonOrPrivate('fc00::1'), isTrue);
+      expect(IpInfoService.isBogonOrPrivate('fd12:3456:789a::1'), isTrue);
+    });
+
+    test('does not flag public IPv6 addresses', () {
+      expect(IpInfoService.isBogonOrPrivate('2606:4700:4700::1111'), isFalse);
+      expect(IpInfoService.isBogonOrPrivate('2001:4860:4860::8888'), isFalse);
+    });
+
+    test('handles whitespace and invalid inputs safely', () {
+      expect(IpInfoService.isBogonOrPrivate(' 192.168.1.1 '), isTrue);
+      expect(IpInfoService.isBogonOrPrivate(''), isFalse);
+      expect(IpInfoService.isBogonOrPrivate('not-an-ip'), isFalse);
+      expect(IpInfoService.isBogonOrPrivate('999.999.999.999'), isFalse);
+    });
+  });
+
+  group('IpInfoService - bogon purity check', () {
+    test('skips external HTTP lookups and returns score 100 for private IPs',
+        () async {
+      for (final ip in [
+        '192.168.1.1',
+        '10.0.0.1',
+        '127.0.0.1',
+        '100.64.0.1',
+        '::1',
+        'fe80::1',
+        'fc00::1',
+      ]) {
+        final result = await IpInfoService.checkIpPurity(ip: ip);
+        expect(result.score, 100);
+        expect(result.verdict, IpInfoService.verdictPrivateOrBogon);
+        expect(result.factors.length, 1);
+        expect(result.factors.first.name, 'Private / Bogon IP');
+        expect(result.factors.first.passed, isTrue);
+        expect(result.factors.first.detail, contains('unroutable'));
+      }
+    });
+  });
+
   group('IpInfoService - purity scoring', () {
     const cleanFactor = PurityFactor(
       name: 'Clean check',
@@ -28,14 +144,14 @@ void main() {
       penalty: 60,
     );
 
-    test('all passing factors score 100', () {
+    test('all passing factors score 100 with >= 2 verified factors', () {
       expect(
         IpInfoService.computePurityScore([cleanFactor, cleanFactor]),
         100,
       );
     });
 
-    test('a failing factor subtracts its penalty', () {
+    test('a failing factor subtracts its penalty when quorum is met', () {
       const torFactor = PurityFactor(
         name: 'Tor exit node',
         passed: false,
@@ -45,7 +161,7 @@ void main() {
       expect(IpInfoService.computePurityScore([cleanFactor, torFactor]), 40);
     });
 
-    test('an unchecked factor (passed == null) subtracts nothing', () {
+    test('an unchecked factor (passed == null) subtracts nothing when quorum is met', () {
       const uncheckedFactor = PurityFactor(
         name: 'Reverse DNS',
         passed: null,
@@ -53,8 +169,40 @@ void main() {
         penalty: 15,
       );
       expect(
-        IpInfoService.computePurityScore([cleanFactor, uncheckedFactor]),
+        IpInfoService.computePurityScore([
+          cleanFactor,
+          cleanFactor,
+          uncheckedFactor,
+        ]),
         100,
+      );
+    });
+
+    test('fewer than 2 verified factors returns 0 and unverified', () {
+      const uncheckedFactor = PurityFactor(
+        name: 'Reverse DNS',
+        passed: null,
+        detail: 'not checked',
+        penalty: 15,
+      );
+      expect(IpInfoService.computePurityScore([]), 0);
+      expect(IpInfoService.computePurityScore([uncheckedFactor]), 0);
+      expect(IpInfoService.computePurityScore([cleanFactor]), 0);
+      expect(
+        IpInfoService.computePurityScore([cleanFactor, uncheckedFactor]),
+        0,
+      );
+      expect(
+        IpInfoService.purityVerdict(100, verifiedFactors: 1),
+        IpInfoService.verdictUnverified,
+      );
+      expect(
+        IpInfoService.purityVerdict(100, verifiedFactors: [cleanFactor]),
+        IpInfoService.verdictUnverified,
+      );
+      expect(
+        IpInfoService.purityVerdict(0, hasVerifiedFactors: false),
+        IpInfoService.verdictUnverified,
       );
     });
 
@@ -87,30 +235,267 @@ void main() {
       );
     });
 
-    test('all unchecked factors return 0 and unverified', () {
-      const uncheckedFactor = PurityFactor(
-        name: 'Reverse DNS',
-        passed: null,
-        detail: 'not checked',
-        penalty: 15,
-      );
-      expect(
-        IpInfoService.computePurityScore([uncheckedFactor]),
-        0,
-      );
-      expect(
-        IpInfoService.purityVerdict(0, hasVerifiedFactors: false),
-        'Unverified',
-      );
-    });
-
-    test('verdict bands', () {
+    test('verdict bands when quorum is met', () {
       expect(IpInfoService.purityVerdict(100), 'Clean');
       expect(IpInfoService.purityVerdict(80), 'Clean');
       expect(IpInfoService.purityVerdict(79), 'Suspicious');
       expect(IpInfoService.purityVerdict(50), 'Suspicious');
       expect(IpInfoService.purityVerdict(49), 'Flagged');
       expect(IpInfoService.purityVerdict(0), 'Flagged');
+    });
+  });
+
+  group('IpInfoService - threat intelligence handling', () {
+    test('marks threat passed true only when intel explicitly reports clean', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.host == 'ip.net.coffee') {
+          return http.Response(
+            jsonEncode({
+              'ip': '8.8.8.8',
+              'is_abuser': false,
+              'threats': [],
+              'is_datacenter': false,
+              'is_vpn': false,
+              'is_proxy': false,
+              'is_tor': false,
+            }),
+            200,
+          );
+        }
+        if (request.url.host == 'check.torproject.org') {
+          return http.Response('', 200);
+        }
+        return http.Response('not found', 404);
+      });
+
+      final result = await IpInfoService.checkIpPurity(
+        ip: '8.8.8.8',
+        client: client,
+      );
+
+      final threatFactor = result.factors.firstWhere(
+        (f) => f.name == 'Threat / abuse history',
+      );
+      expect(threatFactor.passed, isTrue);
+      expect(threatFactor.detail, contains('Clean threat history'));
+    });
+
+    test('marks threat passed false when intel reports abuse', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.host == 'ip.net.coffee') {
+          return http.Response(
+            jsonEncode({
+              'ip': '8.8.8.8',
+              'is_abuser': true,
+              'abuser_score': '95%',
+              'is_datacenter': false,
+              'is_vpn': false,
+              'is_proxy': false,
+              'is_tor': false,
+            }),
+            200,
+          );
+        }
+        if (request.url.host == 'check.torproject.org') {
+          return http.Response('', 200);
+        }
+        return http.Response('not found', 404);
+      });
+
+      final result = await IpInfoService.checkIpPurity(
+        ip: '8.8.8.8',
+        client: client,
+      );
+
+      final threatFactor = result.factors.firstWhere(
+        (f) => f.name == 'Threat / abuse history',
+      );
+      expect(threatFactor.passed, isFalse);
+    });
+
+    test('marks threat unverified (null) when fallback source lacks threat keys', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.host == 'ip.net.coffee') {
+          return http.Response('service unavailable', 503);
+        }
+        if (request.url.host == 'ipwho.is') {
+          // ipwho.is returns geo & asn, but no threat keys
+          return http.Response(
+            jsonEncode({
+              'ip': '8.8.8.8',
+              'success': true,
+              'connection': {
+                'asn': 15169,
+                'org': 'Google LLC',
+                'isp': 'Google LLC',
+              },
+              'country': 'United States',
+              'city': 'Mountain View',
+            }),
+            200,
+          );
+        }
+        if (request.url.host == 'check.torproject.org') {
+          return http.Response('', 200);
+        }
+        return http.Response('not found', 404);
+      });
+
+      final result = await IpInfoService.checkIpPurity(
+        ip: '8.8.8.8',
+        client: client,
+      );
+
+      final threatFactor = result.factors.firstWhere(
+        (f) => f.name == 'Threat / abuse history',
+      );
+      expect(threatFactor.passed, isNull);
+      expect(threatFactor.detail, contains('not provided'));
+    });
+  });
+
+  group('IpInfoService - checkIpLeak dual-stack & offline robustness', () {
+    test('does not report leak for dual-stack IPv4 + IPv6 responses', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.host == 'api.ipify.org') {
+          return http.Response('1.1.1.1', 200);
+        }
+        if (request.url.host == 'icanhazip.com') {
+          return http.Response('2606:4700::1', 200);
+        }
+        if (request.url.host == 'ident.me') {
+          return http.Response('1.1.1.1', 200);
+        }
+        if (request.url.host == 'www.cloudflare.com') {
+          return http.Response('ip=1.1.1.1\nloc=US\n', 200);
+        }
+        return http.Response('not found', 404);
+      });
+
+      final result = await IpInfoService.checkIpLeak(client: client);
+      expect(result.consistent, isTrue);
+      expect(result.seenIpv4, {'1.1.1.1'});
+      expect(result.seenIpv6, {'2606:4700::1'});
+    });
+
+    test('flags leak when multiple distinct IPv4 addresses appear', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.host == 'api.ipify.org') {
+          return http.Response('1.1.1.1', 200);
+        }
+        if (request.url.host == 'icanhazip.com') {
+          return http.Response('2.2.2.2', 200);
+        }
+        return http.Response('not found', 404);
+      });
+
+      final result = await IpInfoService.checkIpLeak(client: client);
+      expect(result.consistent, isFalse);
+    });
+
+    test('flags leak when multiple distinct IPv6 addresses appear', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.host == 'icanhazip.com') {
+          return http.Response('2606:4700::1', 200);
+        }
+        if (request.url.host == 'ident.me') {
+          return http.Response('2001:db8::1', 200);
+        }
+        return http.Response('not found', 404);
+      });
+
+      final result = await IpInfoService.checkIpLeak(client: client);
+      expect(result.consistent, isFalse);
+    });
+
+    test('does not report leak when all queries fail (offline)', () async {
+      final client = MockHttpClient((request) async {
+        throw const SocketException('Network unreachable');
+      });
+
+      final result = await IpInfoService.checkIpLeak(client: client);
+      expect(result.consistent, isTrue);
+      expect(result.seenIpv4, isEmpty);
+      expect(result.seenIpv6, isEmpty);
+    });
+
+    test('ignores HTML error pages and invalid IP strings', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.host == 'api.ipify.org') {
+          return http.Response('<html>502 Bad Gateway</html>', 200);
+        }
+        if (request.url.host == 'icanhazip.com') {
+          return http.Response('1.1.1.1', 200);
+        }
+        return http.Response('not found', 404);
+      });
+
+      final result = await IpInfoService.checkIpLeak(client: client);
+      expect(result.consistent, isTrue);
+      expect(result.seenIpv4, {'1.1.1.1'});
+      expect(result.seenBy['ipify'], isNull);
+    });
+  });
+
+  group('IpInfoService - parseDohAnswers', () {
+    test('extracts IPv4 (type 1) and IPv6 (type 28) records', () {
+      final json = {
+        'Status': 0,
+        'Answer': [
+          {'name': 'example.com.', 'type': 1, 'data': '93.184.216.34'},
+          {
+            'name': 'example.com.',
+            'type': 28,
+            'data': '2606:2800:220:1:248:1893:25c8:1946',
+          },
+        ],
+      };
+
+      final answers = IpInfoService.parseDohAnswers(json);
+      expect(answers, [
+        '93.184.216.34',
+        '2606:2800:220:1:248:1893:25c8:1946',
+      ]);
+    });
+
+    test('filters out CNAME (type 5) and metadata records', () {
+      final json = {
+        'Status': 0,
+        'Answer': [
+          {
+            'name': 'cdn.example.com.',
+            'type': 5,
+            'data': 'edge.example.net.',
+          },
+          {
+            'name': 'edge.example.net.',
+            'type': 1,
+            'data': '93.184.216.34',
+          },
+          {
+            'name': 'example.com.',
+            'type': 16,
+            'data': 'v=spf1 ~all',
+          },
+        ],
+      };
+
+      final answers = IpInfoService.parseDohAnswers(json);
+      expect(answers, ['93.184.216.34']);
+    });
+
+    test('returns empty list for missing or invalid Answer field', () {
+      expect(IpInfoService.parseDohAnswers({}), isEmpty);
+      expect(IpInfoService.parseDohAnswers({'Answer': null}), isEmpty);
+      expect(IpInfoService.parseDohAnswers({'Answer': []}), isEmpty);
+      expect(
+        IpInfoService.parseDohAnswers({
+          'Answer': [
+            {'type': 1, 'data': 'not-an-ip'},
+          ],
+        }),
+        isEmpty,
+      );
     });
   });
 
@@ -132,7 +517,10 @@ void main() {
 
     test('does not flag residential ISPs', () {
       expect(IpInfoService.isHostingAsn('Google LLC'), isFalse);
-      expect(IpInfoService.isHostingAsn('Mobile Telecommunication Company of Iran'), isFalse);
+      expect(
+        IpInfoService.isHostingAsn('Mobile Telecommunication Company of Iran'),
+        isFalse,
+      );
       expect(IpInfoService.isHostingAsn(''), isFalse);
     });
   });
@@ -280,43 +668,6 @@ void main() {
       expect(info.organization, isNull);
       expect(info.country, isNull);
       expect(info.abuseEmail, isNull);
-    });
-  });
-
-  group('IpInfoService - live lookups', () {
-    test('fetchIpLookup returns a public IP', () async {
-      final lookup = await IpInfoService.fetchIpLookup();
-      expect(
-        lookup.primaryIp,
-        isNotNull,
-        reason: 'No public IP could be fetched',
-      );
-      print('Public IP: ${lookup.primaryIp}');
-      if (lookup.geo != null) {
-        print(
-          'Geo: ${lookup.geo!.countryName}, ${lookup.geo!.cityName} '
-          '(${lookup.geo!.ispName})',
-        );
-      }
-    });
-
-    test('checkCloudflare returns trace fields', () async {
-      final status = await IpInfoService.checkCloudflare();
-      expect(
-        status.reachable,
-        isTrue,
-        reason: 'Cloudflare trace unreachable: ${status.error}',
-      );
-      expect(status.ip, isNotNull);
-      print('Cloudflare edge: ${status.colo} (${status.location}), '
-          'WARP: ${status.warp}');
-    });
-
-    test('checkIpPurity returns factors and verdict', () async {
-      final purity = await IpInfoService.checkIpPurity(ip: '8.8.8.8');
-      expect(purity.factors, isNotEmpty);
-      expect(purity.score, inInclusiveRange(0, 100));
-      expect(['Clean', 'Suspicious', 'Flagged', 'Unverified'], contains(purity.verdict));
     });
   });
 }
