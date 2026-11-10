@@ -24,6 +24,7 @@ import '../patt/sni_spoof_check/sni_spoof_check_screen.dart';
 import '../patt/cloudflare_fix/cloudflare_fix_screen.dart';
 import '../patt/add_ech/add_ech_screen.dart';
 import '../internet_diagnostics/internet_diagnostics_screen.dart';
+import '../ip_info/ip_info_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -36,7 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _versionCheckDone = false;
-  final Set<String> _expandedSections = {'Patt'};
+  final Set<String> _expandedSections = {'Patt', 'Diagnostics'};
 
   @override
   void initState() {
@@ -114,6 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Widget> get _screens => [
     const InternetDiagnosticsScreen(),
+    const IpInfoScreen(),
     const DomainCheckerScreen(),
     const DnsScannerScreen(),
     const DnsHunterScreen(),
@@ -141,7 +143,20 @@ class _HomeScreenState extends State<HomeScreen> {
         label: 'Diagnostics',
         icon: Icons.network_ping_outlined,
         selectedIcon: Icons.network_ping,
-        index: idx++,
+        children: [
+          _NavItem(
+            label: 'Internet Diagnostics',
+            icon: Icons.network_ping_outlined,
+            selectedIcon: Icons.network_ping,
+            index: idx++,
+          ),
+          _NavItem(
+            label: 'IP info',
+            icon: Icons.public_outlined,
+            selectedIcon: Icons.public,
+            index: idx++,
+          ),
+        ],
       ),
       _NavItem(
         label: 'Domains',
