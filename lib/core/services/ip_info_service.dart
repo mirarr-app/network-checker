@@ -88,10 +88,63 @@ class IpInfoService {
 
   // ── IP purity ──────────────────────────────────────────────────────────
 
-  /// Scores an IP from 0 (flagged) to 100 (clean) using only free signals.
+  /// Fetches rich IP intelligence from keyless public APIs.
+  /// Tries ip.net.coffee first, then falls back to ip-api.com.
+  static Future<Map<String, dynamic>?> _fetchIpIntelligence(String ip) async {
+    // 1. ip.net.coffee (specialized in IP purity, VPN, proxy, datacenter, threats)
+    try {
+      final response = await http
+          .get(
+            Uri.parse('https://ip.net.coffee/api/ip/lookup/$ip'),
+            headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'},
+          )
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic> && data['ip'] != null) {
+          return data;
+        }
+      }
+    } catch (_) {}
+
+    // 2. ip-api.com fallback
+    try {
+      final response = await http
+          .get(Uri.parse(
+              'http://ip-api.com/json/$ip?fields=status,message,country,city,isp,org,as,asname,regionName,timezone,proxy,hosting,mobile,reverse,query'))
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic> && data['status'] == 'success') {
+          return {
+            'ip': data['query'],
+            'is_datacenter': data['hosting'] == true,
+            'is_vpn': false,
+            'is_proxy': data['proxy'] == true,
+            'is_mobile': data['mobile'] == true,
+            'company_name': data['org'],
+            'company_type': data['hosting'] == true ? 'hosting' : 'isp',
+            'asOrganization': data['org'] ?? data['asname'],
+            'asn': data['as'],
+            'rdns': data['reverse'],
+            'isp': data['isp'],
+          };
+        }
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  /// Scores an IP from 0 (flagged) to 100 (clean) using verified signals.
   /// Each factor that fails subtracts its penalty; factors that could not
   /// be checked ([PurityFactor.passed] == null) subtract nothing.
+  /// If no factors could be verified, returns 0.
   static int computePurityScore(List<PurityFactor> factors) {
+    if (factors.isEmpty) return 0;
+    final verified = factors.where((factor) => factor.passed != null);
+    if (verified.isEmpty) return 0;
+
     var score = 100;
     for (final factor in factors) {
       if (factor.passed == false) score -= factor.penalty;
@@ -99,33 +152,29 @@ class IpInfoService {
     return score.clamp(0, 100);
   }
 
-  static String purityVerdict(int score) {
+  static String purityVerdict(int score, {bool hasVerifiedFactors = true}) {
+    if (!hasVerifiedFactors) return 'Unverified';
     if (score >= 80) return 'Clean';
     if (score >= 50) return 'Suspicious';
     return 'Flagged';
   }
 
-  /// Runs the purity checks for [ip]. [geo] is reused when the caller
-  /// already fetched it (from [fetchIpLookup]) to avoid a second lookup.
+  /// Runs the purity checks for [ip]. Combines keyless intelligence APIs,
+  /// the Tor bulk exit list, GeoIP ASN data, and reverse DNS heuristics.
   static Future<IpPurityResult> checkIpPurity({
     required String ip,
     IpGeoInfo? geo,
   }) async {
     final factors = <PurityFactor>[];
 
+    // Fetch multi-source IP intelligence (VPN, proxy, datacenter, threats)
+    final intel = await _fetchIpIntelligence(ip);
+
     // 1. Tor exit node membership.
     final torExitIps = await _fetchTorExitList();
-    if (torExitIps == null) {
-      factors.add(
-        const PurityFactor(
-          name: 'Tor exit node',
-          passed: null,
-          detail: 'Tor exit list unreachable — not checked',
-          penalty: 60,
-        ),
-      );
-    } else {
-      final isExit = torExitIps.contains(ip);
+    final bool isTorIntel = intel?['is_tor'] == true;
+    if (torExitIps != null) {
+      final isExit = torExitIps.contains(ip) || isTorIntel;
       factors.add(
         PurityFactor(
           name: 'Tor exit node',
@@ -136,39 +185,152 @@ class IpInfoService {
           penalty: 60,
         ),
       );
-    }
-
-    // 2. Proxy flag and ASN ownership from the GeoIP database.
-    if (geo != null) {
+    } else if (intel != null) {
       factors.add(
         PurityFactor(
-          name: 'Known proxy',
-          passed: !geo.isProxy,
-          detail: geo.isProxy
-              ? 'GeoIP database flags this IP as a proxy'
-              : 'Not flagged as a proxy',
-          penalty: 35,
+          name: 'Tor exit node',
+          passed: !isTorIntel,
+          detail: isTorIntel
+              ? 'Intelligence flags this IP as a Tor exit node'
+              : 'Not a known Tor exit node',
+          penalty: 60,
         ),
       );
-
-      final hosting = isHostingAsn(geo.asnOrganization);
+    } else {
       factors.add(
-        PurityFactor(
-          name: 'Datacenter / hosting ASN',
-          passed: !hosting,
-          detail: hosting
-              ? 'ASN belongs to a hosting/cloud provider'
-                    ' (${geo.asnOrganization})'
-              : 'ASN looks like a residential/ISP network'
-                    ' (${geo.asnOrganization})',
-          penalty: 25,
+        const PurityFactor(
+          name: 'Tor exit node',
+          passed: null,
+          detail: 'Tor exit list unreachable — not checked',
+          penalty: 60,
         ),
       );
     }
 
-    // 3. Reverse DNS: server/datacenter-style PTR hostnames.
-    final ptr = await _reverseDns(ip);
-    if (ptr == null) {
+    // 2. Known proxy / VPN detection.
+    final bool? isProxyFlag;
+    final String proxyDetail;
+    if (intel != null) {
+      final vpn = intel['is_vpn'] == true;
+      final proxy = intel['is_proxy'] == true || intel['proxy'] == true;
+      if (vpn && proxy) {
+        isProxyFlag = true;
+        proxyDetail = 'Intelligence flags this IP as both a VPN and a Proxy';
+      } else if (vpn) {
+        isProxyFlag = true;
+        proxyDetail = 'Intelligence flags this IP as a VPN exit';
+      } else if (proxy) {
+        isProxyFlag = true;
+        proxyDetail = 'Intelligence flags this IP as a proxy server';
+      } else {
+        isProxyFlag = false;
+        proxyDetail = 'Not flagged as a VPN or proxy';
+      }
+    } else if (geo != null) {
+      isProxyFlag = geo.isProxy;
+      proxyDetail = geo.isProxy
+          ? 'GeoIP database flags this IP as a proxy'
+          : 'Not flagged as a proxy';
+    } else {
+      isProxyFlag = null;
+      proxyDetail = 'Proxy / VPN status unverified';
+    }
+
+    factors.add(
+      PurityFactor(
+        name: 'Known proxy / VPN',
+        passed: isProxyFlag == null ? null : !isProxyFlag,
+        detail: proxyDetail,
+        penalty: 35,
+      ),
+    );
+
+    // 3. Datacenter / hosting ASN detection.
+    final asnOrg = geo?.asnOrganization.isNotEmpty == true
+        ? geo!.asnOrganization
+        : (intel?['datacenter_name'] as String? ??
+            intel?['asOrganization'] as String? ??
+            intel?['org'] as String? ??
+            '');
+
+    final bool hasIntelDc = intel?['is_datacenter'] == true ||
+        intel?['company_type'] == 'hosting' ||
+        intel?['hosting'] == true;
+
+    final bool isDcFlag;
+    final String dcDetail;
+    if (hasIntelDc || isHostingAsn(asnOrg)) {
+      isDcFlag = true;
+      final dcName = asnOrg.isNotEmpty
+          ? asnOrg
+          : (intel?['datacenter_name'] ?? 'Cloud hosting');
+      dcDetail = 'IP belongs to a hosting/datacenter provider ($dcName)';
+    } else if (intel != null || geo != null || asnOrg.isNotEmpty) {
+      isDcFlag = false;
+      final ispName = asnOrg.isNotEmpty
+          ? asnOrg
+          : (intel?['isp'] ?? geo?.ispName ?? 'ISP network');
+      dcDetail = 'ASN looks like a residential/ISP network ($ispName)';
+    } else {
+      isDcFlag = false;
+      dcDetail = 'Datacenter / hosting status unverified';
+    }
+
+    factors.add(
+      PurityFactor(
+        name: 'Datacenter / hosting ASN',
+        passed: (intel == null && geo == null && asnOrg.isEmpty) ? null : !isDcFlag,
+        detail: (intel == null && geo == null && asnOrg.isEmpty)
+            ? 'Datacenter / hosting status unverified'
+            : dcDetail,
+        penalty: 25,
+      ),
+    );
+
+    // 4. Threat / abuse history.
+    if (intel != null) {
+      final isAbuser = intel['is_abuser'] == true;
+      final threats = (intel['intelligence'] is Map &&
+              intel['intelligence']['threats'] is List)
+          ? (intel['intelligence']['threats'] as List)
+          : null;
+      final abuserScore = intel['abuser_score']?.toString();
+
+      if (isAbuser || (threats != null && threats.isNotEmpty)) {
+        final threatLabels = threats != null
+            ? threats
+                .map((t) => t is Map ? t['label']?.toString() : null)
+                .whereType<String>()
+                .join(', ')
+            : '';
+        factors.add(
+          PurityFactor(
+            name: 'Threat / abuse history',
+            passed: false,
+            detail: threatLabels.isNotEmpty
+                ? 'Threats reported: $threatLabels'
+                : 'Flagged for abuse or malicious activity (${abuserScore ?? 'High risk'})',
+            penalty: 20,
+          ),
+        );
+      } else {
+        factors.add(
+          const PurityFactor(
+            name: 'Threat / abuse history',
+            passed: true,
+            detail: 'Clean threat history — no abuse reports found',
+            penalty: 20,
+          ),
+        );
+      }
+    }
+
+    // 5. Reverse DNS: server/datacenter-style PTR hostnames.
+    final ptr = (intel?['rdns'] as String?)?.isNotEmpty == true
+        ? intel!['rdns'] as String
+        : await _reverseDns(ip);
+
+    if (ptr == null || ptr.isEmpty) {
       factors.add(
         const PurityFactor(
           name: 'Reverse DNS',
@@ -191,10 +353,11 @@ class IpInfoService {
       );
     }
 
+    final hasVerified = factors.any((factor) => factor.passed != null);
     final score = computePurityScore(factors);
     return IpPurityResult(
       score: score,
-      verdict: purityVerdict(score),
+      verdict: purityVerdict(score, hasVerifiedFactors: hasVerified),
       factors: factors,
     );
   }
@@ -233,6 +396,7 @@ class IpInfoService {
 
   static const List<String> _hostingOrgKeywords = [
     'amazon',
+    'aws',
     'microsoft',
     'azure',
     'google cloud',
@@ -243,20 +407,44 @@ class IpInfoService {
     'hetzner',
     'ovh',
     'alibaba',
+    'aliyun',
     'tencent cloud',
     'oracle cloud',
+    'oracle corporation',
     'akamai',
     'cloudflare',
     'fastly',
     'choopa',
+    'constant company',
     'kamatera',
     'contabo',
     'scaleway',
+    'online s.a.s',
     'ionos',
+    'datacamp',
+    'cdn77',
+    'm247',
+    'leaseweb',
+    'hostinger',
+    'netcup',
+    'clouvider',
+    'serverius',
+    'hostroyale',
+    'stark industries',
+    'fly.io',
+    'zenlayer',
+    'rackspace',
+    'cogent',
+    'hurricane electric',
+    'gtt communications',
+    'lumen',
+    'centurylink',
     'hosting',
     'datacenter',
     'data center',
     'vps',
+    'server',
+    'colocation',
   ];
 
   /// Whether a PTR hostname looks like a server/datacenter host.
@@ -279,6 +467,15 @@ class IpInfoService {
     'hosting',
     'cloud-',
     '.vps',
+    'your-server.de',
+    'hetzner',
+    'ovh.net',
+    'contabo',
+    'leaseweb',
+    'scaleway',
+    'server',
+    'cdn77',
+    'datacamp',
   ];
 
   static Future<String?> _reverseDns(String ip) async {
@@ -344,30 +541,32 @@ class IpInfoService {
   }) async {
     final stopwatch = Stopwatch()..start();
 
-    // 1. Cloudflare trace: the site itself reports the IP it saw.
-    try {
-      final traceUri = Uri.parse('https://${target.domain}/cdn-cgi/trace');
-      final traceResponse = await http
-          .get(traceUri)
-          .timeout(const Duration(seconds: 4));
-      if (traceResponse.statusCode == 200) {
-        final fields = parseCloudflareTrace(traceResponse.body);
-        final traceIp = fields['ip'];
-        if (traceIp != null && traceIp.isNotEmpty) {
-          stopwatch.stop();
-          return SplitRouteResult(
-            name: target.name,
-            domain: target.domain,
-            status: ReachabilityStatus.reachable,
-            exitIp: traceIp,
-            exitIpLocation: await geoFor(traceIp),
-            latencyMs: stopwatch.elapsedMilliseconds,
-            exitIpFromTrace: true,
-          );
+    // 1. Cloudflare trace: only attempted if the domain supports trace.
+    if (target.supportsTrace) {
+      try {
+        final traceUri = Uri.parse('https://${target.domain}/cdn-cgi/trace');
+        final traceResponse = await http
+            .get(traceUri)
+            .timeout(const Duration(seconds: 4));
+        if (traceResponse.statusCode == 200) {
+          final fields = parseCloudflareTrace(traceResponse.body);
+          final traceIp = fields['ip'];
+          if (traceIp != null && traceIp.isNotEmpty) {
+            stopwatch.stop();
+            return SplitRouteResult(
+              name: target.name,
+              domain: target.domain,
+              status: ReachabilityStatus.reachable,
+              exitIp: traceIp,
+              exitIpLocation: await geoFor(traceIp),
+              latencyMs: stopwatch.elapsedMilliseconds,
+              exitIpFromTrace: true,
+            );
+          }
         }
+      } catch (_) {
+        // Fall through to DNS + HTTPS.
       }
-    } catch (_) {
-      // Fall through to DNS + HTTPS.
     }
 
     // 2. DNS resolution via the system resolver (respects VPN split rules).
@@ -431,8 +630,8 @@ class IpInfoService {
         name: target.name,
         domain: target.domain,
         status: ReachabilityStatus.reachable,
-        exitIp: publicIp,
-        exitIpLocation: publicIp != null ? await geoFor(publicIp) : null,
+        exitIp: null,
+        exitIpLocation: null,
         resolvedIp: resolvedIp,
         latencyMs: stopwatch.elapsedMilliseconds,
         exitIpFromTrace: false,
@@ -578,11 +777,14 @@ class IpInfoService {
     } else if (systemIps.isEmpty) {
       verdict =
           'System DNS failed to resolve $testDomain (${systemError ?? 'unknown error'})';
-    } else if (cloudflareIps.isNotEmpty && googleIps.isNotEmpty) {
+    } else if (cloudflareIps.isEmpty && googleIps.isEmpty) {
+      verdict =
+          'Encrypted DNS (DoH) unreachable — cannot compare with system resolver (DoH may be blocked)';
+    } else if (cloudflareIps.isNotEmpty || googleIps.isNotEmpty) {
       final systemSet = systemIps.toSet();
-      final agreesWithCf =
+      final agreesWithCf = cloudflareIps.isNotEmpty &&
           systemSet.intersection(cloudflareIps.toSet()).isNotEmpty;
-      final agreesWithGoogle =
+      final agreesWithGoogle = googleIps.isNotEmpty &&
           systemSet.intersection(googleIps.toSet()).isNotEmpty;
       if (!agreesWithCf && !agreesWithGoogle) {
         leakDetected = true;
@@ -684,7 +886,7 @@ class IpInfoService {
     final distinctIps = seenBy.values.whereType<String>().toSet();
     return IpLeakResult(
       seenBy: seenBy,
-      consistent: distinctIps.length <= 1,
+      consistent: distinctIps.length == 1,
       localInterfaces: interfaces,
     );
   }
@@ -960,8 +1162,13 @@ class IpPurityResult {
 class SplitRouteTarget {
   final String name;
   final String domain;
+  final bool supportsTrace;
 
-  const SplitRouteTarget({required this.name, required this.domain});
+  const SplitRouteTarget({
+    required this.name,
+    required this.domain,
+    this.supportsTrace = false,
+  });
 }
 
 /// Result for one domain in the split-routing test.

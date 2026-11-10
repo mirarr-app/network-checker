@@ -121,7 +121,12 @@ class IpInfoScreen extends StatelessWidget {
       centerIcon = Icons.sync;
     } else if (controller.isCompleted) {
       final purity = controller.purity;
-      if (purity != null && purity.score >= 80) {
+      if (purity != null && purity.verdict == 'Unverified') {
+        pulseColor = colorScheme.outlineVariant;
+        statusTitle = 'Unverified IP';
+        statusDesc = 'Purity signals could not be verified';
+        centerIcon = Icons.help_outline_rounded;
+      } else if (purity != null && purity.score >= 80) {
         pulseColor = colorScheme.success;
         statusTitle = 'Clean IP';
         statusDesc = 'Purity score ${purity.score}/100';
@@ -512,9 +517,19 @@ class IpInfoScreen extends StatelessWidget {
       ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1, end: 0);
     }
 
-    final Color scoreColor = purity.score >= 80
-        ? colorScheme.success
-        : (purity.score >= 50 ? colorScheme.warning : colorScheme.error);
+    final Color scoreColor = purity.verdict == 'Unverified'
+        ? colorScheme.outline
+        : (purity.score >= 80
+            ? colorScheme.success
+            : (purity.score >= 50 ? colorScheme.warning : colorScheme.error));
+
+    final String verdictDesc = purity.verdict == 'Unverified'
+        ? 'Purity signals could not be reached. Reputation is unverified.'
+        : (purity.score >= 80
+            ? 'Looks like a normal residential IP. Services are unlikely to flag it.'
+            : (purity.score >= 50
+                ? 'Some signals look unusual. A few services may challenge or limit this IP.'
+                : 'Strong signals of a proxy, datacenter or Tor exit. Expect blocks and captchas.'));
 
     return _buildSectionCard(
       context,
@@ -547,11 +562,7 @@ class IpInfoScreen extends StatelessWidget {
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
-                  purity.score >= 80
-                      ? 'Looks like a normal residential IP. Services are unlikely to flag it.'
-                      : (purity.score >= 50
-                          ? 'Some signals look unusual. A few services may challenge or limit this IP.'
-                          : 'Strong signals of a proxy, datacenter or Tor exit. Expect blocks and captchas.'),
+                  verdictDesc,
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.4,
@@ -728,23 +739,81 @@ class IpInfoScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  result.exitIp ?? '--',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontFamily: 'monospace',
+                if (result.exitIpFromTrace && result.exitIp != null) ...[
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          result.exitIp!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontFamily: 'monospace',
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Trace',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                Text(
-                  result.exitIpLocation ??
-                      (result.exitIpFromTrace ? '' : 'via echo service'),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: colorScheme.onSurfaceVariant.withValues(
-                      alpha: 0.7,
+                  if (result.exitIpLocation != null)
+                    Text(
+                      result.exitIpLocation!,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.7,
+                        ),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                ] else ...[
+                  Text(
+                    result.resolvedIp != null
+                        ? 'DNS: ${result.resolvedIp}'
+                        : (isReachable ? 'Reachable' : '--'),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontFamily:
+                          result.resolvedIp != null ? 'monospace' : null,
+                      color:
+                          colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
+                  Text(
+                    isReachable
+                        ? 'Direct connection'
+                        : (result.errorDetails ?? 'Unreachable'),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color:
+                          colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ],
             ),
           ),

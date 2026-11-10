@@ -644,13 +644,44 @@ class InternetDiagnosticsService {
 
   /// Helper to fetch GeoIP information defensively
   static Future<IpGeoInfo?> fetchIpGeoDetails(String ip) async {
+    // 1. Try ip.net.coffee
+    try {
+      final response = await http
+          .get(
+            Uri.parse('https://ip.net.coffee/api/ip/lookup/$ip'),
+            headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'},
+          )
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (data['ip'] != null) {
+          return IpGeoInfo.fromJson(data);
+        }
+      }
+    } catch (_) {}
+
+    // 2. Try freeipapi.com
     try {
       final response = await http
           .get(Uri.parse('https://freeipapi.com/api/json/$ip'))
-          .timeout(const Duration(seconds: 3));
+          .timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         return IpGeoInfo.fromJson(data);
+      }
+    } catch (_) {}
+
+    // 3. Try ip-api.com
+    try {
+      final response = await http
+          .get(Uri.parse(
+              'http://ip-api.com/json/$ip?fields=status,message,country,city,isp,org,as,asname,regionName,timezone,proxy,hosting,query'))
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (data['status'] == 'success') {
+          return IpGeoInfo.fromJson(data);
+        }
       }
     } catch (e) {
       debugPrint('GeoIP lookup failed for $ip: $e');
@@ -2018,18 +2049,50 @@ class IpGeoInfo {
 
   factory IpGeoInfo.fromJson(Map<String, dynamic> json) {
     final timeZones = json['timeZones'];
+    final timeZoneStr = timeZones is List && timeZones.isNotEmpty
+        ? timeZones.first.toString()
+        : (json['timezone'] as String? ?? json['timeZone'] as String? ?? '');
+
+    final rawAsn = json['asn']?.toString() ??
+        (json['as'] != null
+            ? RegExp(r'AS(\d+)').firstMatch(json['as'].toString())?.group(1) ??
+                json['as'].toString()
+            : '');
+
+    final asnOrg = json['asnOrganization'] as String? ??
+        json['asOrganization'] as String? ??
+        json['org'] as String? ??
+        '';
+
+    final isp = json['asName'] as String? ??
+        json['asname'] as String? ??
+        json['isp'] as String? ??
+        (asnOrg.isNotEmpty ? asnOrg : null) ??
+        json['company_name'] as String? ??
+        'Unknown ISP';
+
+    final isProxy = json['isProxy'] as bool? ??
+        json['is_proxy'] as bool? ??
+        json['is_vpn'] as bool? ??
+        json['proxy'] as bool? ??
+        false;
+
     return IpGeoInfo(
-      ipAddress: json['ipAddress'] as String? ?? '',
-      countryName: json['countryName'] as String? ?? 'Unknown Country',
-      cityName: json['cityName'] as String? ?? 'Unknown City',
-      ispName: json['asName'] as String? ?? 'Unknown ISP',
-      regionName: json['regionName'] as String? ?? 'Unknown Region',
-      asn: json['asn']?.toString() ?? '',
-      asnOrganization: json['asnOrganization'] as String? ?? '',
-      isProxy: json['isProxy'] as bool? ?? false,
-      timeZone: timeZones is List && timeZones.isNotEmpty
-          ? timeZones.first.toString()
-          : '',
+      ipAddress: json['ipAddress'] as String? ?? json['ip'] as String? ?? '',
+      countryName: json['countryName'] as String? ??
+          json['country'] as String? ??
+          'Unknown Country',
+      cityName: json['cityName'] as String? ??
+          json['city'] as String? ??
+          'Unknown City',
+      ispName: isp,
+      regionName: json['regionName'] as String? ??
+          json['region'] as String? ??
+          'Unknown Region',
+      asn: rawAsn,
+      asnOrganization: asnOrg,
+      isProxy: isProxy,
+      timeZone: timeZoneStr,
     );
   }
 

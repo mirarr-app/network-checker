@@ -87,6 +87,23 @@ void main() {
       );
     });
 
+    test('all unchecked factors return 0 and unverified', () {
+      const uncheckedFactor = PurityFactor(
+        name: 'Reverse DNS',
+        passed: null,
+        detail: 'not checked',
+        penalty: 15,
+      );
+      expect(
+        IpInfoService.computePurityScore([uncheckedFactor]),
+        0,
+      );
+      expect(
+        IpInfoService.purityVerdict(0, hasVerifiedFactors: false),
+        'Unverified',
+      );
+    });
+
     test('verdict bands', () {
       expect(IpInfoService.purityVerdict(100), 'Clean');
       expect(IpInfoService.purityVerdict(80), 'Clean');
@@ -106,6 +123,11 @@ void main() {
         IpInfoService.isHostingAsn('Google Cloud Platform'),
         isTrue,
       );
+      expect(IpInfoService.isHostingAsn('Datacamp Limited'), isTrue);
+      expect(IpInfoService.isHostingAsn('M247 Ltd'), isTrue);
+      expect(IpInfoService.isHostingAsn('Leaseweb Deutschland GmbH'), isTrue);
+      expect(IpInfoService.isHostingAsn('The Constant Company, LLC'), isTrue);
+      expect(IpInfoService.isHostingAsn('Contabo GmbH'), isTrue);
     });
 
     test('does not flag residential ISPs', () {
@@ -288,6 +310,13 @@ void main() {
       expect(status.ip, isNotNull);
       print('Cloudflare edge: ${status.colo} (${status.location}), '
           'WARP: ${status.warp}');
+    });
+
+    test('checkIpPurity returns factors and verdict', () async {
+      final purity = await IpInfoService.checkIpPurity(ip: '8.8.8.8');
+      expect(purity.factors, isNotEmpty);
+      expect(purity.score, inInclusiveRange(0, 100));
+      expect(['Clean', 'Suspicious', 'Flagged', 'Unverified'], contains(purity.verdict));
     });
   });
 }

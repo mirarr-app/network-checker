@@ -269,10 +269,14 @@ class IpInfoController extends ChangeNotifier {
         'Reachable: $splitReachableCount / ${_splitResults.length}',
       );
       for (final result in _splitResults) {
+        final exitInfo = result.exitIpFromTrace && result.exitIp != null
+            ? 'trace exit: ${result.exitIp}${result.exitIpLocation != null ? ' (${result.exitIpLocation})' : ''}'
+            : (result.resolvedIp != null
+                ? 'resolved: ${result.resolvedIp}'
+                : 'direct/no trace');
         buffer.writeln(
           '- ${result.name} (${result.domain}): ${result.status.name}, '
-          'exit IP: ${result.exitIp ?? '--'}'
-          '${result.exitIpLocation != null ? ' (${result.exitIpLocation})' : ''}, '
+          '$exitInfo, '
           'latency: ${result.latencyMs ?? '--'} ms',
         );
       }
