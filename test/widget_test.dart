@@ -15,6 +15,10 @@ void main() {
     expect(find.text('Patt'), findsAtLeast(1));
     expect(find.text('SNI Check'), findsAtLeast(1));
 
+    // Verify the Diagnostics section has the IP info sub-item
+    expect(find.text('Internet Diagnostics'), findsAtLeast(1));
+    expect(find.text('IP info'), findsAtLeast(1));
+
     // Let staggered animation timers complete
     await tester.pump(const Duration(seconds: 2));
   });

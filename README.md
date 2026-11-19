@@ -53,6 +53,9 @@ Available for Android, Windows, and Linux.
 ### Internet Diagnostics
 A set of automated tests for different network protocols, DNS providers, websites accessibility and more. Ready to be analyzed with AI.
 
+### IP info
+Check your public IP address, its geolocation and ASN, an IP purity score (Tor exit, proxy and datacenter signals), per-website exit IPs for split-routing setups, median latency to popular services, and environment checks: DNS leak, IP leak, Cloudflare edge, global ping and whois.
+
 ### Domain Checker
 Scan most visited domains to check which ones are accessible. With the ability to add custom ones!
 
@@ -95,6 +98,9 @@ Check if SNI spoofing is open. Inspired by [sni scanner](https://github.com/sera
 
 ### تست کامل شبکه
 تحلیل کامل پروتکل‌ها، شبکه‌های اجتماعی، وبسایت‌های معروف، دی‌ان‌اس‌های معروف و موارد دیگر آماده شده برای تحلیل با هوش مصنوعی.
+
+### اطلاعات IP
+بررسی آدرس IP عمومی، موقعیت جغرافیایی و ASN، امتیاز خلوص IP (خروجی Tor، پراکسی و دیتاسنتر)، آی‌پی خروجی هر وب‌سایت برای تنظیمات split-routing، میانگین تأخیر تا سرویس‌های معروف و بررسی‌های محیطی: نشت DNS، نشت IP، لبه کلودفلر، پینگ جهانی و whois.
 
 ### بررسی‌کننده دامنه
 اسکن پربازدیدترین دامنه‌ها برای بررسی در دسترس بودن آن‌ها. با قابلیت اضافه کردن دامنه‌های دلخواه.
