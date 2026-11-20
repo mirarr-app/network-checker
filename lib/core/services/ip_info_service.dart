@@ -555,10 +555,7 @@ class IpInfoService {
       );
     }
 
-    final verifiedCount =
-        factors.where((factor) => factor.passed != null).length;
-    final score = computePurityScore(factors);
-
+    // 6. Human vs machine traffic telemetry.
     int? parsedAsn;
     if (geo?.asn.isNotEmpty == true) {
       parsedAsn = int.tryParse(geo!.asn.replaceAll(RegExp(r'[^0-9]'), ''));
@@ -569,6 +566,85 @@ class IpInfoService {
       asn: parsedAsn,
       client: client,
     );
+
+    if (intel == null && geo == null) {
+      factors.add(
+        const PurityFactor(
+          name: 'Human vs machine traffic',
+          passed: null,
+          detail: 'Traffic telemetry unreachable — not checked',
+          penalty: 20,
+        ),
+      );
+    } else if (humanVsMachine.isBogon ||
+        humanVsMachine.classification ==
+            HumanVsMachineClassification.notApplicable) {
+      factors.add(
+        const PurityFactor(
+          name: 'Human vs machine traffic',
+          passed: null,
+          detail: 'Traffic telemetry not applicable for local/private IP',
+          penalty: 20,
+        ),
+      );
+    } else {
+      final isCrawler = humanVsMachine.classification ==
+          HumanVsMachineClassification.crawler;
+      final isPublicService = humanVsMachine.classification ==
+          HumanVsMachineClassification.publicService;
+      final isMostlyMachine = humanVsMachine.classification ==
+          HumanVsMachineClassification.mostlyMachine;
+      final isMixedMoreMachine = humanVsMachine.classification ==
+              HumanVsMachineClassification.mixed &&
+          humanVsMachine.machinePercentage > 50.0;
+
+      final bool passed = !isCrawler &&
+          !isPublicService &&
+          !isMostlyMachine &&
+          !isMixedMoreMachine;
+
+      final int penalty;
+      final String detail;
+      if (isCrawler) {
+        penalty = 20;
+        detail =
+            'Network flagged for automated crawlers and bots (${humanVsMachine.machinePercentString} machine)';
+      } else if (isPublicService) {
+        penalty = 20;
+        detail =
+            'Public infrastructure with automated request traffic (${humanVsMachine.machinePercentString} machine)';
+      } else if (isMostlyMachine) {
+        penalty = 20;
+        detail =
+            'Automated / bot traffic dominates this network (${humanVsMachine.machinePercentString} machine)';
+      } else if (isMixedMoreMachine) {
+        penalty = 10;
+        detail =
+            'Elevated automated / bot traffic detected (${humanVsMachine.machinePercentString} machine)';
+      } else if (humanVsMachine.classification ==
+          HumanVsMachineClassification.mixed) {
+        penalty = 20;
+        detail =
+            'Human/machine mix with balanced user traffic (${humanVsMachine.humanPercentString} human)';
+      } else {
+        penalty = 20;
+        detail =
+            'Predominantly human user traffic (${humanVsMachine.humanPercentString} human)';
+      }
+
+      factors.add(
+        PurityFactor(
+          name: 'Human vs machine traffic',
+          passed: passed,
+          detail: detail,
+          penalty: penalty,
+        ),
+      );
+    }
+
+    final verifiedCount =
+        factors.where((factor) => factor.passed != null).length;
+    final score = computePurityScore(factors);
 
     return IpPurityResult(
       score: score,

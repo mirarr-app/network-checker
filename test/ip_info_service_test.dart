@@ -1016,6 +1016,116 @@ void main() {
         hvm.classification,
         HumanVsMachineClassification.publicService,
       );
+
+      final trafficFactor = purity.factors.firstWhere(
+        (f) => f.name == 'Human vs machine traffic',
+      );
+      expect(trafficFactor.passed, isFalse);
+      expect(trafficFactor.penalty, 20);
+      expect(trafficFactor.detail, contains('Public infrastructure'));
+    });
+
+    test('predominantly human IP passes Human vs machine traffic check', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.host == 'ip.net.coffee' &&
+            request.url.path.contains('/api/ip/lookup')) {
+          return http.Response(
+            jsonEncode({
+              'ip': '73.189.0.1',
+              'asn': 7922,
+              'company_type': 'isp',
+              'is_datacenter': false,
+              'is_public_service': false,
+              'is_crawler': false,
+              'is_vpn': false,
+              'is_proxy': false,
+              'is_tor': false,
+              'is_abuser': false,
+              'threats': [],
+            }),
+            200,
+          );
+        }
+        if (request.url.host == 'ip.net.coffee' &&
+            request.url.path.contains('/api/ipv2/radar/7922')) {
+          return http.Response(
+            jsonEncode({
+              'asn': 7922,
+              'ok': true,
+              'human': 85.0,
+              'bot': 15.0,
+            }),
+            200,
+          );
+        }
+        if (request.url.host == 'check.torproject.org') {
+          return http.Response('', 200);
+        }
+        return http.Response('not found', 404);
+      });
+
+      final purity = await IpInfoService.checkIpPurity(
+        ip: '73.189.0.1',
+        client: client,
+      );
+
+      final trafficFactor = purity.factors.firstWhere(
+        (f) => f.name == 'Human vs machine traffic',
+      );
+      expect(trafficFactor.passed, isTrue);
+      expect(trafficFactor.detail, contains('Predominantly human user traffic'));
+    });
+
+    test('penalizes 10 points for mixed traffic with machine > 50%', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.host == 'ip.net.coffee' &&
+            request.url.path.contains('/api/ip/lookup')) {
+          return http.Response(
+            jsonEncode({
+              'ip': '1.2.3.4',
+              'asn': 1234,
+              'company_type': 'business',
+              'is_datacenter': false,
+              'is_public_service': false,
+              'is_crawler': false,
+              'is_vpn': false,
+              'is_proxy': false,
+              'is_tor': false,
+              'is_abuser': false,
+              'threats': [],
+            }),
+            200,
+          );
+        }
+        if (request.url.host == 'ip.net.coffee' &&
+            request.url.path.contains('/api/ipv2/radar/1234')) {
+          return http.Response(
+            jsonEncode({
+              'asn': 1234,
+              'ok': true,
+              'human': 45.0,
+              'bot': 55.0,
+            }),
+            200,
+          );
+        }
+        if (request.url.host == 'check.torproject.org') {
+          return http.Response('', 200);
+        }
+        return http.Response('not found', 404);
+      });
+
+      final purity = await IpInfoService.checkIpPurity(
+        ip: '1.2.3.4',
+        client: client,
+      );
+
+      final trafficFactor = purity.factors.firstWhere(
+        (f) => f.name == 'Human vs machine traffic',
+      );
+      expect(trafficFactor.passed, isFalse);
+      expect(trafficFactor.penalty, 10);
+      expect(trafficFactor.detail, contains('Elevated automated / bot traffic'));
     });
 
     test('bogon IP includes notApplicable humanVsMachine result', () async {
