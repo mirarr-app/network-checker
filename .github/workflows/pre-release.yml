@@ -1,6 +1,13 @@
 name: Build Pre-release Flutter App
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: 'Mark release as draft'
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   build_android:
@@ -154,5 +161,5 @@ jobs:
             ./out/windows/*
             ./out/linux/*
           tag_name: ${{ steps.version.outputs.VERSION }}
-          draft: false
+          draft: ${{ inputs.draft }}
           prerelease: true
