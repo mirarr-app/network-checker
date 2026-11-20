@@ -337,6 +337,7 @@ class IpInfoService {
             penalty: 0,
           ),
         ],
+        humanVsMachine: HumanVsMachineResult.notApplicableResult,
       );
     }
 
@@ -557,10 +558,23 @@ class IpInfoService {
     final verifiedCount =
         factors.where((factor) => factor.passed != null).length;
     final score = computePurityScore(factors);
+
+    int? parsedAsn;
+    if (geo?.asn.isNotEmpty == true) {
+      parsedAsn = int.tryParse(geo!.asn.replaceAll(RegExp(r'[^0-9]'), ''));
+    }
+    final humanVsMachine = await evaluateHumanVsMachine(
+      ip: ip,
+      intel: intel,
+      asn: parsedAsn,
+      client: client,
+    );
+
     return IpPurityResult(
       score: score,
       verdict: purityVerdict(score, verifiedFactors: verifiedCount),
       factors: factors,
+      humanVsMachine: humanVsMachine,
     );
   }
 
@@ -703,6 +717,172 @@ class IpInfoService {
     } catch (_) {
       return null;
     }
+  }
+
+  // ── Humans vs Machines ─────────────────────────────────────────────────
+
+  /// Heuristic estimate of human traffic percentage for an IP based on its
+  /// company type, ASN kind, and flags (mirrors ip.net.coffee's humanEstimate).
+  static double estimateHumanTraffic(Map<String, dynamic> data) {
+    final companyType = (data['company_type'] ?? '').toString().toLowerCase();
+    final asnKind = (data['asn_kind'] ?? '').toString().toLowerCase();
+    final isPublicService = data['is_public_service'] == true;
+    final isCrawler = data['is_crawler'] == true;
+    final isMobile = data['is_mobile'] == true;
+    final isDatacenter = data['is_datacenter'] == true;
+
+    if (isPublicService) return 2.0;
+    if (isCrawler) return 6.0;
+    if (isMobile || asnKind == 'mobile') return 93.0;
+    if (isDatacenter ||
+        companyType == 'hosting' ||
+        asnKind == 'hosting' ||
+        asnKind == 'cdn') {
+      return 18.0;
+    }
+    if (companyType == 'business') return 65.0;
+    return 88.0;
+  }
+
+  /// Adjusts a human traffic percentage using IP risk factors
+  /// (mirrors ip.net.coffee's humanAdjust).
+  static double adjustHumanTraffic(
+    double baseHuman,
+    Map<String, dynamic> data,
+  ) {
+    var h = baseHuman;
+    final isTor = data['is_tor'] == true;
+    final isProxy = data['is_proxy'] == true || data['proxy'] == true;
+    final isVpn = data['is_vpn'] == true;
+    final isCrawler = data['is_crawler'] == true;
+    final isAbuser = data['is_abuser'] == true;
+
+    if (isTor) {
+      h *= 0.4;
+    } else if (isProxy || isVpn) {
+      h *= 0.6;
+    }
+    if (isCrawler) {
+      final crawlerCap = h * 0.3 + 2.0;
+      h = h < crawlerCap ? h : crawlerCap;
+    }
+    if (isAbuser) {
+      h -= 5.0;
+    }
+    return h.clamp(1.0, 99.0);
+  }
+
+  /// Categorizes traffic into human, mixed, machine, crawler, or public service.
+  static HumanVsMachineClassification classifyTraffic({
+    required double humanPercentage,
+    bool isPublicService = false,
+    bool isCrawler = false,
+    bool isBogon = false,
+  }) {
+    if (isBogon) return HumanVsMachineClassification.notApplicable;
+    if (isPublicService) return HumanVsMachineClassification.publicService;
+    if (isCrawler) return HumanVsMachineClassification.crawler;
+    if (humanPercentage >= 55.0) return HumanVsMachineClassification.mostlyHuman;
+    if (humanPercentage >= 40.0) return HumanVsMachineClassification.mixed;
+    return HumanVsMachineClassification.mostlyMachine;
+  }
+
+  /// Fetches Cloudflare Radar 28-day human traffic statistics for [asn] via
+  /// ip.net.coffee's public radar endpoint. Returns null when unavailable.
+  static Future<double?> fetchRadarHumanRatio(
+    int asn, {
+    http.Client? client,
+  }) async {
+    final httpClient = client ?? http.Client();
+    final shouldCloseClient = client == null;
+    try {
+      final response = await httpClient
+          .get(
+            Uri.parse('https://ip.net.coffee/api/ipv2/radar/$asn'),
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            },
+          )
+          .timeout(const Duration(seconds: 4));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic> &&
+            data['ok'] == true &&
+            data['human'] is num) {
+          return (data['human'] as num).toDouble();
+        }
+      }
+    } catch (e) {
+      debugPrint('IP info: radar lookup failed for AS$asn: $e');
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+    return null;
+  }
+
+  /// Evaluates the human vs machine traffic ratio for [ip].
+  /// Matches ip.net.coffee's methodology: attempts Cloudflare Radar ASN stats
+  /// first, falls back to network type estimation, and applies IP risk factor
+  /// adjustments.
+  static Future<HumanVsMachineResult> evaluateHumanVsMachine({
+    required String ip,
+    Map<String, dynamic>? intel,
+    int? asn,
+    http.Client? client,
+  }) async {
+    if (isBogonOrPrivate(ip)) {
+      return HumanVsMachineResult.notApplicableResult;
+    }
+
+    final effectiveIntel =
+        intel ?? await _fetchIpIntelligence(ip, client: client) ?? {};
+
+    int? targetAsn = asn;
+    if (targetAsn == null) {
+      final rawAsn = effectiveIntel['asn']?.toString() ?? '';
+      final digits = rawAsn.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digits.isNotEmpty) {
+        targetAsn = int.tryParse(digits);
+      }
+    }
+
+    double? radarHuman;
+    if (targetAsn != null && targetAsn > 0) {
+      radarHuman = await fetchRadarHumanRatio(targetAsn, client: client);
+    }
+
+    final bool isEstimated;
+    final double baseHuman;
+    final String note;
+
+    if (radarHuman != null) {
+      baseHuman = radarHuman;
+      note = 'Based on 28-day ASN statistics adjusted for IP risk signals';
+      isEstimated = false;
+    } else {
+      baseHuman = estimateHumanTraffic(effectiveIntel);
+      note = 'Estimated based on network type and risk signals';
+      isEstimated = true;
+    }
+
+    final adjustedHuman = adjustHumanTraffic(baseHuman, effectiveIntel);
+    final adjustedMachine = 100.0 - adjustedHuman;
+
+    final classification = classifyTraffic(
+      humanPercentage: adjustedHuman,
+      isPublicService: effectiveIntel['is_public_service'] == true,
+      isCrawler: effectiveIntel['is_crawler'] == true,
+    );
+
+    return HumanVsMachineResult(
+      humanPercentage: double.parse(adjustedHuman.toStringAsFixed(1)),
+      machinePercentage: double.parse(adjustedMachine.toStringAsFixed(1)),
+      classification: classification,
+      note: note,
+      isEstimated: isEstimated,
+    );
   }
 
   // ── Split routing ──────────────────────────────────────────────────────
@@ -1412,16 +1592,62 @@ class PurityFactor {
   });
 }
 
+/// Traffic classification between humans and machines / bots (matching ip.net.coffee).
+enum HumanVsMachineClassification {
+  mostlyHuman('Mostly human'),
+  mixed('Human/machine mix'),
+  mostlyMachine('Mostly machine'),
+  crawler('Crawler / Bot'),
+  publicService('Public service / Anycast'),
+  notApplicable('Not applicable');
+
+  final String label;
+  const HumanVsMachineClassification(this.label);
+}
+
+/// Evaluated traffic ratio between human users and automated bots.
+class HumanVsMachineResult {
+  final double humanPercentage;
+  final double machinePercentage;
+  final HumanVsMachineClassification classification;
+  final String note;
+  final bool isEstimated;
+  final bool isBogon;
+
+  const HumanVsMachineResult({
+    required this.humanPercentage,
+    required this.machinePercentage,
+    required this.classification,
+    required this.note,
+    this.isEstimated = false,
+    this.isBogon = false,
+  });
+
+  String get humanPercentString => '${humanPercentage.toStringAsFixed(1)}%';
+  String get machinePercentString => '${machinePercentage.toStringAsFixed(1)}%';
+
+  static const notApplicableResult = HumanVsMachineResult(
+    humanPercentage: 0.0,
+    machinePercentage: 0.0,
+    classification: HumanVsMachineClassification.notApplicable,
+    note: 'Private or local IP — external traffic telemetry is not applicable.',
+    isEstimated: true,
+    isBogon: true,
+  );
+}
+
 /// IP purity score: 0–100 plus the per-factor breakdown.
 class IpPurityResult {
   final int score;
   final String verdict;
   final List<PurityFactor> factors;
+  final HumanVsMachineResult? humanVsMachine;
 
   const IpPurityResult({
     required this.score,
     required this.verdict,
     required this.factors,
+    this.humanVsMachine,
   });
 }
 

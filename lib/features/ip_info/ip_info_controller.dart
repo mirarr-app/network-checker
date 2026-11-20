@@ -83,6 +83,7 @@ class IpInfoController extends ChangeNotifier {
 
   IpLookupInfo? get lookup => _lookup;
   IpPurityResult? get purity => _purity;
+  HumanVsMachineResult? get humanVsMachine => _purity?.humanVsMachine;
   PurityVerdict? get purityVerdict =>
       _purity == null ? null : PurityVerdict.fromString(_purity!.verdict);
 
@@ -324,6 +325,15 @@ class IpInfoController extends ChangeNotifier {
             ? 'NOT CHECKED'
             : (factor.passed! ? 'PASS' : 'FAIL');
         buffer.writeln('- ${factor.name}: $state — ${factor.detail}');
+      }
+      final hvm = _purity!.humanVsMachine;
+      if (hvm != null && !hvm.isBogon) {
+        buffer.writeln();
+        buffer.writeln('### HUMANS VS MACHINES');
+        buffer.writeln('Classification: ${hvm.classification.label}');
+        buffer.writeln('Human: ${hvm.humanPercentString}');
+        buffer.writeln('Machine: ${hvm.machinePercentString}');
+        buffer.writeln('Source: ${hvm.note}');
       }
       buffer.writeln();
     }

@@ -55,7 +55,12 @@ class IpInfoScreen extends StatelessWidget {
 
                     const SizedBox(height: 16),
 
-                    // 3. IP purity score
+                    // 3. Humans vs Machines traffic classification
+                    _buildHumanVsMachineCard(context, controller),
+
+                    const SizedBox(height: 16),
+
+                    // 4. IP purity score
                     _buildPurityCard(context, controller),
 
                     const SizedBox(height: 16),
@@ -511,12 +516,246 @@ class IpInfoScreen extends StatelessWidget {
             if (geo.timeZone.isNotEmpty)
               _buildInfoRow(context, 'Timezone', geo.timeZone),
           ],
+          if (controller.humanVsMachine != null &&
+              !controller.humanVsMachine!.isBogon) ...[
+            _buildInfoRow(
+              context,
+              'Traffic Ratio',
+              '${controller.humanVsMachine!.classification.label} '
+              '(${controller.humanVsMachine!.humanPercentString} human / '
+              '${controller.humanVsMachine!.machinePercentString} machine)',
+            ),
+          ],
         ],
       ),
     ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.1, end: 0);
   }
 
-  // ── 3. IP purity ───────────────────────────────────────────────────────
+  // ── 3. Humans vs Machines ──────────────────────────────────────────────
+
+  Widget _buildHumanVsMachineCard(
+    BuildContext context,
+    IpInfoController controller,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final hvm = controller.humanVsMachine;
+
+    if (hvm == null) {
+      return _buildSectionCard(
+        context,
+        title: 'HUMANS VS MACHINES',
+        subtitle: controller.isRunning && controller.completedSections >= 1
+            ? 'Evaluating traffic telemetry...'
+            : (controller.isCompleted
+                ? 'Traffic classification unavailable'
+                : 'Run the check to inspect human vs machine traffic ratio'),
+        child: _buildEmptySection(
+          context,
+          controller.isCompleted
+              ? 'Traffic classification could not be completed'
+              : (controller.lookup == null
+                  ? 'Needs your public IP first'
+                  : 'Analyzing ASN telemetry and risk signals...'),
+        ),
+      ).animate().fadeIn(delay: 150.ms).slideY(begin: 0.1, end: 0);
+    }
+
+    if (hvm.isBogon) {
+      return _buildSectionCard(
+        context,
+        title: 'HUMANS VS MACHINES',
+        subtitle: 'Traffic classification and bot ratio',
+        trailing: _buildStatusChip(
+          context,
+          hvm.classification.label,
+          colorScheme.outline,
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.lan_rounded, size: 20, color: colorScheme.outline),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                hvm.note,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ).animate().fadeIn(delay: 150.ms).slideY(begin: 0.1, end: 0);
+    }
+
+    final Color chipColor;
+    final IconData classificationIcon;
+    switch (hvm.classification) {
+      case HumanVsMachineClassification.mostlyHuman:
+        chipColor = colorScheme.success;
+        classificationIcon = Icons.person_rounded;
+        break;
+      case HumanVsMachineClassification.mixed:
+        chipColor = colorScheme.tertiary;
+        classificationIcon = Icons.shuffle_rounded;
+        break;
+      case HumanVsMachineClassification.mostlyMachine:
+        chipColor = colorScheme.error;
+        classificationIcon = Icons.smart_toy_rounded;
+        break;
+      case HumanVsMachineClassification.crawler:
+        chipColor = Colors.deepPurple;
+        classificationIcon = Icons.pest_control_rounded;
+        break;
+      case HumanVsMachineClassification.publicService:
+        chipColor = colorScheme.primary;
+        classificationIcon = Icons.dns_rounded;
+        break;
+      case HumanVsMachineClassification.notApplicable:
+        chipColor = colorScheme.outline;
+        classificationIcon = Icons.help_outline_rounded;
+        break;
+    }
+
+    final Color humanColor = colorScheme.success;
+    final Color machineColor = colorScheme.error;
+
+    return _buildSectionCard(
+      context,
+      title: 'HUMANS VS MACHINES',
+      subtitle: 'Traffic classification and bot ratio',
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: chipColor.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(classificationIcon, size: 14, color: chipColor),
+            const SizedBox(width: 5),
+            Text(
+              hvm.classification.label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: chipColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.person_rounded, size: 16, color: humanColor),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Human ${hvm.humanPercentString}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'monospace',
+                      color: humanColor,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Icon(Icons.smart_toy_rounded, size: 16, color: machineColor),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Machine ${hvm.machinePercentString}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'monospace',
+                      color: machineColor,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: SizedBox(
+              height: 10,
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: (hvm.humanPercentage * 10).round().clamp(1, 999),
+                    child: Container(color: humanColor),
+                  ),
+                  Container(
+                    width: 2,
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                  ),
+                  Expanded(
+                    flex: (hvm.machinePercentage * 10).round().clamp(1, 999),
+                    child: Container(color: machineColor),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.info_outline_rounded,
+                size: 14,
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  hvm.note,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color:
+                        colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+                  ),
+                ),
+              ),
+              if (!hvm.isEstimated) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Radar 28d',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    ).animate().fadeIn(delay: 150.ms).slideY(begin: 0.1, end: 0);
+  }
+
+  // ── 4. IP purity ───────────────────────────────────────────────────────
 
   Widget _buildPurityCard(
     BuildContext context,

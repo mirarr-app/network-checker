@@ -670,4 +670,364 @@ void main() {
       expect(info.abuseEmail, isNull);
     });
   });
+
+  group('IpInfoService - estimateHumanTraffic', () {
+    test('public services estimate low human traffic (2.0%)', () {
+      final est = IpInfoService.estimateHumanTraffic({
+        'is_public_service': true,
+      });
+      expect(est, 2.0);
+    });
+
+    test('crawlers estimate low human traffic (6.0%)', () {
+      final est = IpInfoService.estimateHumanTraffic({
+        'is_crawler': true,
+      });
+      expect(est, 6.0);
+    });
+
+    test('mobile networks estimate high human traffic (93.0%)', () {
+      expect(
+        IpInfoService.estimateHumanTraffic({'is_mobile': true}),
+        93.0,
+      );
+      expect(
+        IpInfoService.estimateHumanTraffic({'asn_kind': 'mobile'}),
+        93.0,
+      );
+    });
+
+    test('datacenters and hosting estimate low human traffic (18.0%)', () {
+      expect(
+        IpInfoService.estimateHumanTraffic({'is_datacenter': true}),
+        18.0,
+      );
+      expect(
+        IpInfoService.estimateHumanTraffic({'company_type': 'hosting'}),
+        18.0,
+      );
+      expect(
+        IpInfoService.estimateHumanTraffic({'asn_kind': 'hosting'}),
+        18.0,
+      );
+      expect(
+        IpInfoService.estimateHumanTraffic({'asn_kind': 'cdn'}),
+        18.0,
+      );
+    });
+
+    test('business company type estimates 65.0%', () {
+      expect(
+        IpInfoService.estimateHumanTraffic({'company_type': 'business'}),
+        65.0,
+      );
+    });
+
+    test('standard residential / ISP defaults to 88.0%', () {
+      expect(
+        IpInfoService.estimateHumanTraffic({'company_type': 'isp'}),
+        88.0,
+      );
+      expect(
+        IpInfoService.estimateHumanTraffic({}),
+        88.0,
+      );
+    });
+  });
+
+  group('IpInfoService - adjustHumanTraffic', () {
+    test('reduces human traffic for Tor by 60% (multiplies by 0.4)', () {
+      final adjusted = IpInfoService.adjustHumanTraffic(80.0, {
+        'is_tor': true,
+      });
+      expect(adjusted, closeTo(32.0, 0.01));
+    });
+
+    test('reduces human traffic for VPN or proxy by 40% (multiplies by 0.6)', () {
+      final vpnAdj = IpInfoService.adjustHumanTraffic(80.0, {
+        'is_vpn': true,
+      });
+      expect(vpnAdj, closeTo(48.0, 0.01));
+
+      final proxyAdj = IpInfoService.adjustHumanTraffic(80.0, {
+        'is_proxy': true,
+      });
+      expect(proxyAdj, closeTo(48.0, 0.01));
+    });
+
+    test('penalizes abuser history by 5%', () {
+      final adjusted = IpInfoService.adjustHumanTraffic(80.0, {
+        'is_abuser': true,
+      });
+      expect(adjusted, closeTo(75.0, 0.01));
+    });
+
+    test('clamps values between 1.0 and 99.0', () {
+      expect(
+        IpInfoService.adjustHumanTraffic(0.5, {}),
+        1.0,
+      );
+      expect(
+        IpInfoService.adjustHumanTraffic(100.0, {}),
+        99.0,
+      );
+      expect(
+        IpInfoService.adjustHumanTraffic(2.0, {'is_tor': true, 'is_abuser': true}),
+        1.0,
+      );
+    });
+  });
+
+  group('IpInfoService - classifyTraffic', () {
+    test('classifies bogon IPs as notApplicable', () {
+      expect(
+        IpInfoService.classifyTraffic(humanPercentage: 80.0, isBogon: true),
+        HumanVsMachineClassification.notApplicable,
+      );
+    });
+
+    test('classifies public service and crawlers explicitly', () {
+      expect(
+        IpInfoService.classifyTraffic(
+          humanPercentage: 10.0,
+          isPublicService: true,
+        ),
+        HumanVsMachineClassification.publicService,
+      );
+      expect(
+        IpInfoService.classifyTraffic(
+          humanPercentage: 10.0,
+          isCrawler: true,
+        ),
+        HumanVsMachineClassification.crawler,
+      );
+    });
+
+    test('classifies based on human percentage thresholds', () {
+      expect(
+        IpInfoService.classifyTraffic(humanPercentage: 85.0),
+        HumanVsMachineClassification.mostlyHuman,
+      );
+      expect(
+        IpInfoService.classifyTraffic(humanPercentage: 55.0),
+        HumanVsMachineClassification.mostlyHuman,
+      );
+      expect(
+        IpInfoService.classifyTraffic(humanPercentage: 54.9),
+        HumanVsMachineClassification.mixed,
+      );
+      expect(
+        IpInfoService.classifyTraffic(humanPercentage: 40.0),
+        HumanVsMachineClassification.mixed,
+      );
+      expect(
+        IpInfoService.classifyTraffic(humanPercentage: 39.9),
+        HumanVsMachineClassification.mostlyMachine,
+      );
+      expect(
+        IpInfoService.classifyTraffic(humanPercentage: 5.0),
+        HumanVsMachineClassification.mostlyMachine,
+      );
+    });
+  });
+
+  group('IpInfoService - fetchRadarHumanRatio', () {
+    test('extracts human ratio when radar API returns ok', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.path.contains('/api/ipv2/radar/15169')) {
+          return http.Response(
+            jsonEncode({
+              'asn': 15169,
+              'ok': true,
+              'human': 1.3,
+              'bot': 98.7,
+            }),
+            200,
+          );
+        }
+        return http.Response('not found', 404);
+      });
+
+      final ratio = await IpInfoService.fetchRadarHumanRatio(
+        15169,
+        client: client,
+      );
+      expect(ratio, 1.3);
+    });
+
+    test('returns null when radar API returns ok: false or fails', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.path.contains('/api/ipv2/radar/13335')) {
+          return http.Response(
+            jsonEncode({
+              'asn': 13335,
+              'ok': false,
+              'human': null,
+              'bot': null,
+            }),
+            200,
+          );
+        }
+        return http.Response('server error', 500);
+      });
+
+      expect(
+        await IpInfoService.fetchRadarHumanRatio(13335, client: client),
+        isNull,
+      );
+      expect(
+        await IpInfoService.fetchRadarHumanRatio(99999, client: client),
+        isNull,
+      );
+    });
+  });
+
+  group('IpInfoService - evaluateHumanVsMachine', () {
+    test('returns notApplicableResult for bogon IP', () async {
+      final result = await IpInfoService.evaluateHumanVsMachine(
+        ip: '192.168.1.1',
+      );
+      expect(result.isBogon, isTrue);
+      expect(
+        result.classification,
+        HumanVsMachineClassification.notApplicable,
+      );
+      expect(result.humanPercentage, 0.0);
+      expect(result.machinePercentage, 0.0);
+    });
+
+    test('uses radar telemetry when available and adjusts for risks', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.path.contains('/api/ipv2/radar/7922')) {
+          return http.Response(
+            jsonEncode({
+              'asn': 7922,
+              'ok': true,
+              'human': 81.78,
+              'bot': 18.22,
+            }),
+            200,
+          );
+        }
+        return http.Response('not found', 404);
+      });
+
+      final result = await IpInfoService.evaluateHumanVsMachine(
+        ip: '73.189.0.1',
+        asn: 7922,
+        intel: {
+          'is_vpn': false,
+          'is_proxy': false,
+          'is_tor': false,
+          'is_crawler': false,
+          'is_abuser': false,
+        },
+        client: client,
+      );
+
+      expect(result.isEstimated, isFalse);
+      expect(result.humanPercentage, 81.8);
+      expect(result.machinePercentage, 18.2);
+      expect(
+        result.classification,
+        HumanVsMachineClassification.mostlyHuman,
+      );
+      expect(result.note, contains('28-day ASN statistics'));
+    });
+
+    test('falls back to estimation when radar fails', () async {
+      final client = MockHttpClient((request) async {
+        return http.Response('server error', 500);
+      });
+
+      final result = await IpInfoService.evaluateHumanVsMachine(
+        ip: '1.2.3.4',
+        asn: 12345,
+        intel: {
+          'is_datacenter': true,
+          'company_type': 'hosting',
+          'is_vpn': false,
+          'is_proxy': false,
+        },
+        client: client,
+      );
+
+      expect(result.isEstimated, isTrue);
+      expect(result.humanPercentage, 18.0);
+      expect(result.machinePercentage, 82.0);
+      expect(
+        result.classification,
+        HumanVsMachineClassification.mostlyMachine,
+      );
+      expect(result.note, contains('Estimated'));
+    });
+  });
+
+  group('IpInfoService - checkIpPurity includes humanVsMachine', () {
+    test('attaches humanVsMachine result to IpPurityResult', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.host == 'ip.net.coffee' &&
+            request.url.path.contains('/api/ip/lookup')) {
+          return http.Response(
+            jsonEncode({
+              'ip': '8.8.8.8',
+              'asn': 15169,
+              'company_type': 'hosting',
+              'is_datacenter': true,
+              'is_public_service': true,
+              'is_crawler': false,
+              'is_vpn': false,
+              'is_proxy': false,
+              'is_tor': false,
+              'is_abuser': false,
+              'threats': [],
+            }),
+            200,
+          );
+        }
+        if (request.url.host == 'ip.net.coffee' &&
+            request.url.path.contains('/api/ipv2/radar/15169')) {
+          return http.Response(
+            jsonEncode({
+              'asn': 15169,
+              'ok': true,
+              'human': 1.3,
+              'bot': 98.7,
+            }),
+            200,
+          );
+        }
+        if (request.url.host == 'check.torproject.org') {
+          return http.Response('', 200);
+        }
+        return http.Response('not found', 404);
+      });
+
+      final purity = await IpInfoService.checkIpPurity(
+        ip: '8.8.8.8',
+        client: client,
+      );
+
+      expect(purity.humanVsMachine, isNotNull);
+      final hvm = purity.humanVsMachine!;
+      expect(hvm.humanPercentage, 1.3);
+      expect(hvm.machinePercentage, 98.7);
+      expect(
+        hvm.classification,
+        HumanVsMachineClassification.publicService,
+      );
+    });
+
+    test('bogon IP includes notApplicable humanVsMachine result', () async {
+      final purity = await IpInfoService.checkIpPurity(
+        ip: '192.168.1.1',
+      );
+      expect(purity.humanVsMachine, isNotNull);
+      expect(purity.humanVsMachine!.isBogon, isTrue);
+      expect(
+        purity.humanVsMachine!.classification,
+        HumanVsMachineClassification.notApplicable,
+      );
+    });
+  });
 }
