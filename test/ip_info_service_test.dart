@@ -1140,4 +1140,116 @@ void main() {
       );
     });
   });
+
+  group('IpInfoService - fetchPublicIpv4 / fetchPublicIpv6 / fetchIpLookup', () {
+    test('fetchPublicIpv4 returns IPv4 from echo service', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.host.contains('ipify')) {
+          return http.Response('198.51.100.1', 200);
+        }
+        return http.Response('error', 500);
+      });
+      final ip = await IpInfoService.fetchPublicIpv4(client: client);
+      expect(ip, '198.51.100.1');
+    });
+
+    test('fetchPublicIpv4 rejects IPv6 response', () async {
+      final client = MockHttpClient((request) async {
+        return http.Response('2001:db8::1', 200);
+      });
+      final ip = await IpInfoService.fetchPublicIpv4(client: client);
+      expect(ip, isNull);
+    });
+
+    test('fetchPublicIpv6 returns IPv6 from echo service', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.host.contains('ipify')) {
+          return http.Response('2606:4700:4700::1111', 200);
+        }
+        return http.Response('error', 500);
+      });
+      final ip = await IpInfoService.fetchPublicIpv6(client: client);
+      expect(ip, '2606:4700:4700::1111');
+    });
+
+    test('fetchPublicIpv6 rejects IPv4 response', () async {
+      final client = MockHttpClient((request) async {
+        return http.Response('198.51.100.1', 200);
+      });
+      final ip = await IpInfoService.fetchPublicIpv6(client: client);
+      expect(ip, isNull);
+    });
+
+    test('fetchIpLookup discovers both IPv4 and IPv6 on dual-stack network', () async {
+      final client = MockHttpClient((request) async {
+        final host = request.url.host;
+        if (host == 'api4.ipify.org' ||
+            host == 'ipv4.icanhazip.com' ||
+            host == 'v4.ident.me' ||
+            host == 'api.ipify.org') {
+          return http.Response('198.51.100.25', 200);
+        }
+        if (host == 'api6.ipify.org' ||
+            host == 'ipv6.icanhazip.com' ||
+            host == 'v6.ident.me') {
+          return http.Response('2001:db8:85a3::8a2e:370:7334', 200);
+        }
+        if (host == 'freeipapi.com' ||
+            host == 'ipwho.is' ||
+            host == 'ip.net.coffee') {
+          return http.Response(
+            jsonEncode({
+              'ip': '198.51.100.25',
+              'countryName': 'Netherlands',
+              'cityName': 'Amsterdam',
+              'isp': 'VPN Provider',
+              'asn': 'AS12345',
+            }),
+            200,
+          );
+        }
+        return http.Response('not found', 404);
+      });
+
+      final lookup = await IpInfoService.fetchIpLookup(client: client);
+      expect(lookup.ipv4, '198.51.100.25');
+      expect(lookup.ipv6, '2001:db8:85a3::8a2e:370:7334');
+      expect(lookup.primaryIp, '198.51.100.25');
+    });
+
+    test('fetchIpLookup populates only IPv4 on IPv4-only network', () async {
+      final client = MockHttpClient((request) async {
+        final host = request.url.host;
+        if (host == 'api4.ipify.org' ||
+            host == 'ipv4.icanhazip.com' ||
+            host == 'v4.ident.me' ||
+            host == 'api.ipify.org') {
+          return http.Response('203.0.113.10', 200);
+        }
+        return http.Response('error', 500);
+      });
+
+      final lookup = await IpInfoService.fetchIpLookup(client: client);
+      expect(lookup.ipv4, '203.0.113.10');
+      expect(lookup.ipv6, isNull);
+      expect(lookup.primaryIp, '203.0.113.10');
+    });
+
+    test('fetchIpLookup populates only IPv6 on IPv6-only network', () async {
+      final client = MockHttpClient((request) async {
+        final host = request.url.host;
+        if (host == 'api6.ipify.org' ||
+            host == 'ipv6.icanhazip.com' ||
+            host == 'v6.ident.me') {
+          return http.Response('2a00:1450:4001:828::200e', 200);
+        }
+        return http.Response('error', 500);
+      });
+
+      final lookup = await IpInfoService.fetchIpLookup(client: client);
+      expect(lookup.ipv4, isNull);
+      expect(lookup.ipv6, '2a00:1450:4001:828::200e');
+      expect(lookup.primaryIp, '2a00:1450:4001:828::200e');
+    });
+  });
 }

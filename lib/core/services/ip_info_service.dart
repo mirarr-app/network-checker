@@ -36,54 +36,200 @@ class IpInfoService {
   static Set<String>? _torExitIps;
   static DateTime? _torExitListFetchedAt;
 
-  /// Fetches the device's public IPv4 and IPv6 addresses plus GeoIP details
-  /// for the primary address. Either address may be null when unavailable.
-  static Future<IpLookupInfo> fetchIpLookup() async {
-    String? ipv4;
-    String? ipv6;
+  /// Endpoints that resolve strictly to IPv4 (A records only).
+  static const List<String> ipv4EchoEndpoints = [
+    'https://api4.ipify.org',
+    'https://ipv4.icanhazip.com',
+    'https://v4.ident.me',
+    'https://api.ipify.org',
+  ];
 
-    try {
-      final result = await InternetDiagnosticsService.fetchPublicIp(
-        domestic: false,
-      );
-      if (result.success) {
-        final ip = result.message.replaceFirst('IP retrieved: ', '').trim();
-        if (ip.contains(':')) {
-          ipv6 = ip;
-        } else {
-          ipv4 = ip;
-        }
-      }
-    } catch (e) {
-      debugPrint('IP info: public IP lookup failed: $e');
-    }
+  /// Endpoints that resolve strictly to IPv6 (AAAA records only).
+  static const List<String> ipv6EchoEndpoints = [
+    'https://api6.ipify.org',
+    'https://ipv6.icanhazip.com',
+    'https://v6.ident.me',
+  ];
 
-    // api64 returns the IPv6 address when the device has IPv6, else IPv4.
-    try {
-      final response = await http
-          .get(Uri.parse('https://api64.ipify.org'))
-          .timeout(const Duration(seconds: 8));
-      if (response.statusCode == 200) {
-        final ip = response.body.trim();
-        if (ip.contains(':')) {
-          ipv6 = ip;
-        } else {
-          ipv4 ??= ip;
-        }
-      }
-    } catch (e) {
-      debugPrint('IP info: api64.ipify.org lookup failed: $e');
-    }
+  /// Races a list of IP echo [urls] and completes with the first valid IP matching [expectedType].
+  /// Returns null if all endpoints fail or time out.
+  static Future<String?> raceIpEndpoints(
+    List<String> urls,
+    InternetAddressType expectedType, {
+    http.Client? client,
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    if (urls.isEmpty) return null;
 
-    IpGeoInfo? geo;
-    final primaryIp = ipv4 ?? ipv6;
-    if (primaryIp != null) {
+    final completer = Completer<String?>();
+    var remaining = urls.length;
+    final httpClient = client ?? http.Client();
+    final shouldCloseClient = client == null;
+
+    for (final url in urls) {
       try {
-        geo = await InternetDiagnosticsService.fetchIpGeoDetails(primaryIp);
-      } catch (_) {}
+        httpClient
+            .get(Uri.parse(url))
+            .timeout(timeout)
+            .then((response) {
+              if (completer.isCompleted) return;
+              if (response.statusCode == 200) {
+                final body = response.body.trim();
+                final parsed = InternetAddress.tryParse(body);
+                if (parsed != null && parsed.type == expectedType) {
+                  completer.complete(parsed.address);
+                  return;
+                }
+              }
+              remaining--;
+              if (remaining == 0 && !completer.isCompleted) {
+                completer.complete(null);
+              }
+            })
+            .catchError((_) {
+              if (completer.isCompleted) return;
+              remaining--;
+              if (remaining == 0 && !completer.isCompleted) {
+                completer.complete(null);
+              }
+            });
+      } catch (_) {
+        if (!completer.isCompleted) {
+          remaining--;
+          if (remaining == 0) {
+            completer.complete(null);
+          }
+        }
+      }
     }
 
-    return IpLookupInfo(ipv4: ipv4, ipv6: ipv6, geo: geo);
+    try {
+      return await completer.future;
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
+  }
+
+  /// Fetches public IPv4 address by querying IPv4-only echo endpoints in parallel.
+  static Future<String?> fetchPublicIpv4({
+    http.Client? client,
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    return raceIpEndpoints(
+      ipv4EchoEndpoints,
+      InternetAddressType.IPv4,
+      client: client,
+      timeout: timeout,
+    );
+  }
+
+  /// Fetches public IPv6 address by querying IPv6-only echo endpoints in parallel.
+  static Future<String?> fetchPublicIpv6({
+    http.Client? client,
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    return raceIpEndpoints(
+      ipv6EchoEndpoints,
+      InternetAddressType.IPv6,
+      client: client,
+      timeout: timeout,
+    );
+  }
+
+  /// Fetches the device's public IPv4 and IPv6 addresses plus GeoIP details.
+  /// When on a dual-stack connection (such as a VPN supporting both IPv4 and IPv6),
+  /// both addresses are queried concurrently so neither is missed.
+  static Future<IpLookupInfo> fetchIpLookup({http.Client? client}) async {
+    final httpClient = client ?? http.Client();
+    final shouldCloseClient = client == null;
+
+    try {
+      final results = await Future.wait([
+        fetchPublicIpv4(client: httpClient),
+        fetchPublicIpv6(client: httpClient),
+      ]);
+
+      var ipv4 = results[0];
+      var ipv6 = results[1];
+
+      // Defensive fallback if both dedicated queries failed
+      if (ipv4 == null && ipv6 == null) {
+        try {
+          final fallback = await InternetDiagnosticsService.fetchPublicIp(
+            domestic: false,
+          );
+          if (fallback.success) {
+            final ip = fallback.message.replaceFirst('IP retrieved: ', '').trim();
+            final parsed = InternetAddress.tryParse(ip);
+            if (parsed?.type == InternetAddressType.IPv6) {
+              ipv6 = ip;
+            } else if (parsed?.type == InternetAddressType.IPv4) {
+              ipv4 = ip;
+            }
+          }
+        } catch (e) {
+          debugPrint('IP info: public IP fallback lookup failed: $e');
+        }
+
+        // Check dual-stack api64 if still neither address could be resolved
+        if (ipv4 == null && ipv6 == null) {
+          try {
+            final response = await httpClient
+                .get(Uri.parse('https://api64.ipify.org'))
+                .timeout(const Duration(seconds: 4));
+            if (response.statusCode == 200) {
+              final ip = response.body.trim();
+              final parsed = InternetAddress.tryParse(ip);
+              if (parsed?.type == InternetAddressType.IPv6) {
+                ipv6 = ip;
+              } else if (parsed?.type == InternetAddressType.IPv4) {
+                ipv4 = ip;
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      IpGeoInfo? geo;
+      IpGeoInfo? ipv4Geo;
+      IpGeoInfo? ipv6Geo;
+      final primaryIp = ipv4 ?? ipv6;
+
+      if (ipv4 != null && ipv6 != null) {
+        try {
+          final geos = await Future.wait([
+            InternetDiagnosticsService.fetchIpGeoDetails(ipv4).catchError((_) => null),
+            InternetDiagnosticsService.fetchIpGeoDetails(ipv6).catchError((_) => null),
+          ]);
+          ipv4Geo = geos[0];
+          ipv6Geo = geos[1];
+          geo = ipv4Geo ?? ipv6Geo;
+        } catch (_) {}
+      } else if (primaryIp != null) {
+        try {
+          geo = await InternetDiagnosticsService.fetchIpGeoDetails(primaryIp);
+          if (primaryIp == ipv4) {
+            ipv4Geo = geo;
+          } else {
+            ipv6Geo = geo;
+          }
+        } catch (_) {}
+      }
+
+      return IpLookupInfo(
+        ipv4: ipv4,
+        ipv6: ipv6,
+        geo: geo,
+        ipv4Geo: ipv4Geo,
+        ipv6Geo: ipv6Geo,
+      );
+    } finally {
+      if (shouldCloseClient) {
+        httpClient.close();
+      }
+    }
   }
 
   // ── IP purity ──────────────────────────────────────────────────────────
@@ -1641,10 +1787,34 @@ class IpLookupInfo {
   final String? ipv4;
   final String? ipv6;
   final IpGeoInfo? geo;
+  final IpGeoInfo? ipv4Geo;
+  final IpGeoInfo? ipv6Geo;
 
-  const IpLookupInfo({this.ipv4, this.ipv6, this.geo});
+  const IpLookupInfo({
+    this.ipv4,
+    this.ipv6,
+    this.geo,
+    this.ipv4Geo,
+    this.ipv6Geo,
+  });
 
   String? get primaryIp => ipv4 ?? ipv6;
+
+  IpLookupInfo copyWith({
+    String? ipv4,
+    String? ipv6,
+    IpGeoInfo? geo,
+    IpGeoInfo? ipv4Geo,
+    IpGeoInfo? ipv6Geo,
+  }) {
+    return IpLookupInfo(
+      ipv4: ipv4 ?? this.ipv4,
+      ipv6: ipv6 ?? this.ipv6,
+      geo: geo ?? this.geo,
+      ipv4Geo: ipv4Geo ?? this.ipv4Geo,
+      ipv6Geo: ipv6Geo ?? this.ipv6Geo,
+    );
+  }
 }
 
 /// One signal feeding the IP purity score.

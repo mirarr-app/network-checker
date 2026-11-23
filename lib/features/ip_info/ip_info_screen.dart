@@ -9,8 +9,55 @@ import '../../core/theme/app_theme.dart';
 import 'data/ip_info_targets.dart';
 import 'ip_info_controller.dart';
 
-class IpInfoScreen extends StatelessWidget {
+class IpInfoScreen extends StatefulWidget {
   const IpInfoScreen({super.key});
+
+  @override
+  State<IpInfoScreen> createState() => _IpInfoScreenState();
+}
+
+class _IpInfoScreenState extends State<IpInfoScreen> {
+  late final TextEditingController _ipInputController;
+  late final FocusNode _ipFocusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _ipInputController = TextEditingController();
+    _ipFocusNode = FocusNode();
+    _ipInputController.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    final controller = Provider.of<IpInfoController>(context, listen: false);
+    if (controller.errorMessage != null) {
+      controller.clearError();
+    }
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _ipInputController.removeListener(_onTextChanged);
+    _ipInputController.dispose();
+    _ipFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _submitIp(
+    BuildContext context,
+    IpInfoController controller,
+    String input,
+  ) {
+    _ipFocusNode.unfocus();
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) {
+      controller.runIpInfoSuite();
+    } else {
+      final cleaned = IpInfoController.cleanIpInput(trimmed);
+      controller.runIpInfoSuite(cleaned);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +71,10 @@ class IpInfoScreen extends StatelessWidget {
                 return IconButton(
                   icon: const Icon(Icons.refresh),
                   tooltip: 'Reset',
-                  onPressed: controller.resetSuite,
+                  onPressed: () {
+                    _ipInputController.clear();
+                    controller.resetSuite();
+                  },
                 );
               }
               return const SizedBox.shrink();
@@ -43,7 +93,12 @@ class IpInfoScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
+
+                    // Manual IP input card
+                    _buildManualInputCard(context, controller),
+
+                    const SizedBox(height: 16),
 
                     // 1. Status header with the current public IP
                     _buildStatusHeader(context, controller),
@@ -92,14 +147,32 @@ class IpInfoScreen extends StatelessWidget {
       floatingActionButton: Consumer<IpInfoController>(
         builder: (context, controller, _) {
           final isRunning = controller.isRunning;
+          final hasManualInput = _ipInputController.text.trim().isNotEmpty;
           return FloatingActionButton.extended(
             heroTag: 'run_ip_info',
-            onPressed: isRunning ? null : controller.runIpInfoSuite,
+            onPressed: isRunning
+                ? null
+                : () {
+                    final text = _ipInputController.text.trim();
+                    if (text.isNotEmpty) {
+                      _submitIp(context, controller, text);
+                    } else {
+                      controller.runIpInfoSuite();
+                    }
+                  },
             icon: Icon(
-              isRunning ? Icons.hourglass_empty : Icons.public_rounded,
+              isRunning
+                  ? Icons.hourglass_empty
+                  : (hasManualInput
+                      ? Icons.search_rounded
+                      : Icons.public_rounded),
             ),
-            label: Text(isRunning ? 'Checking...' : 'Check my IP'),
-          ).animate().fadeIn(delay: 200.ms).scale(delay: 200.ms);
+            label: Text(
+              isRunning
+                  ? 'Checking...'
+                  : (hasManualInput ? 'Check entered IP' : 'Check my IP'),
+            ),
+          );
         },
       ),
     );
@@ -120,9 +193,10 @@ class IpInfoScreen extends StatelessWidget {
 
     if (controller.isRunning) {
       pulseColor = colorScheme.primary;
-      statusTitle = 'Checking your IP';
-      statusDesc =
-          'Looking up your address, purity, split routing and environment...';
+      statusTitle = 'Checking IP';
+      statusDesc = controller.isManual
+          ? 'Inspecting ${controller.targetIp}...'
+          : 'Looking up your address, purity, split routing and environment...';
       centerIcon = Icons.sync;
     } else if (controller.isCompleted) {
       final purity = controller.purity;
@@ -145,17 +219,23 @@ class IpInfoScreen extends StatelessWidget {
       } else if (purity != null && purity.score >= 80) {
         pulseColor = colorScheme.success;
         statusTitle = 'Clean IP';
-        statusDesc = 'Purity score ${purity.score}/100';
+        statusDesc = controller.isManual
+            ? 'Purity score ${purity.score}/100 for ${controller.targetIp}'
+            : 'Purity score ${purity.score}/100';
         centerIcon = Icons.verified_rounded;
       } else if (purity != null && purity.score >= 50) {
         pulseColor = colorScheme.warning;
         statusTitle = 'Suspicious IP';
-        statusDesc = 'Purity score ${purity.score}/100';
+        statusDesc = controller.isManual
+            ? 'Purity score ${purity.score}/100 for ${controller.targetIp}'
+            : 'Purity score ${purity.score}/100';
         centerIcon = Icons.warning_amber_rounded;
       } else if (purity != null) {
         pulseColor = colorScheme.error;
         statusTitle = 'Flagged IP';
-        statusDesc = 'Purity score ${purity.score}/100';
+        statusDesc = controller.isManual
+            ? 'Purity score ${purity.score}/100 for ${controller.targetIp}'
+            : 'Purity score ${purity.score}/100';
         centerIcon = Icons.gpp_bad_rounded;
       } else {
         pulseColor = colorScheme.warning;
@@ -165,7 +245,8 @@ class IpInfoScreen extends StatelessWidget {
       }
     }
 
-    final publicIp = controller.lookup?.primaryIp;
+    final hasIpv4 = controller.lookup?.ipv4 != null;
+    final hasIpv6 = controller.lookup?.ipv6 != null;
 
     return Column(
       children: [
@@ -229,57 +310,34 @@ class IpInfoScreen extends StatelessWidget {
             ),
           ).animate(key: ValueKey(statusDesc)).fadeIn(duration: 300.ms),
         ),
-        if (publicIp != null) ...[
+        if (hasIpv4 || hasIpv6) ...[
           const SizedBox(height: 14),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: InkWell(
-              onTap: () {
-                Clipboard.setData(ClipboardData(text: publicIp));
-                ScaffoldMessenger.of(context)
-                  ..hideCurrentSnackBar()
-                  ..showSnackBar(
-                    const SnackBar(content: Text('IP copied to clipboard')),
-                  );
-              },
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 380),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                if (hasIpv4)
+                  _buildIpBadge(
+                    context,
+                    label: 'IPv4',
+                    ip: controller.lookup!.ipv4!,
+                    isInspected: controller.activeIp == controller.lookup!.ipv4,
+                    onInspect: () =>
+                        controller.inspectAddress(controller.lookup!.ipv4!),
                   ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        publicIp,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.copy_rounded,
-                      size: 16,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ],
-                ),
-              ),
+                if (hasIpv6)
+                  _buildIpBadge(
+                    context,
+                    label: 'IPv6',
+                    ip: controller.lookup!.ipv6!,
+                    isInspected: controller.activeIp == controller.lookup!.ipv6,
+                    onInspect: () =>
+                        controller.inspectAddress(controller.lookup!.ipv6!),
+                  ),
+              ],
             ),
           ),
         ],
@@ -302,6 +360,300 @@ class IpInfoScreen extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+
+  // ── Manual IP input card ───────────────────────────────────────────────
+
+  Widget _buildManualInputCard(
+    BuildContext context,
+    IpInfoController controller,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Card(
+        color: colorScheme.surfaceContainerHigh.withValues(alpha: 0.5),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: controller.errorMessage != null
+                ? colorScheme.error.withValues(alpha: 0.8)
+                : colorScheme.outlineVariant.withValues(alpha: 0.6),
+            width: controller.errorMessage != null ? 1.5 : 1,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.search_rounded,
+                    size: 20,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _ipInputController,
+                      focusNode: _ipFocusNode,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontFamily: 'monospace',
+                      ),
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (value) =>
+                          _submitIp(context, controller, value),
+                      decoration: InputDecoration(
+                        hintText:
+                            'Enter IPv4 or IPv6 address (or leave empty for auto scan)',
+                        hintStyle: TextStyle(
+                          fontSize: 13,
+                          fontFamily: 'sans-serif',
+                          color: colorScheme.onSurfaceVariant
+                              .withValues(alpha: 0.6),
+                        ),
+                        isDense: true,
+                        border: InputBorder.none,
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 6),
+                      ),
+                    ),
+                  ),
+                  if (_ipInputController.text.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.clear_rounded, size: 18),
+                      tooltip: 'Clear',
+                      onPressed: () {
+                        _ipInputController.clear();
+                        controller.clearError();
+                        setState(() {});
+                      },
+                    ),
+                  const SizedBox(width: 4),
+                  FilledButton.tonal(
+                    onPressed: controller.isRunning
+                        ? null
+                        : () => _submitIp(
+                              context,
+                              controller,
+                              _ipInputController.text,
+                            ),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: controller.isRunning
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text(
+                            'Check',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+              if (controller.errorMessage != null) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline_rounded,
+                      size: 15,
+                      color: colorScheme.error,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        controller.errorMessage!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.error,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (controller.isManual) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.pin_drop_rounded,
+                            size: 13,
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Manual target: ${controller.targetIp}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: controller.isRunning
+                          ? null
+                          : () {
+                              _ipInputController.clear();
+                              controller.runIpInfoSuite();
+                            },
+                      icon: const Icon(Icons.my_location_rounded, size: 14),
+                      label: const Text('Auto-detect my IP',
+                          style: TextStyle(fontSize: 12)),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── IP badge in header ──────────────────────────────────────────────────
+
+  Widget _buildIpBadge(
+    BuildContext context, {
+    required String label,
+    required String ip,
+    required bool isInspected,
+    VoidCallback? onInspect,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 380),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isInspected
+              ? colorScheme.primary.withValues(alpha: 0.6)
+              : colorScheme.outlineVariant.withValues(alpha: 0.6),
+          width: isInspected ? 1.5 : 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: (isInspected
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant)
+                  .withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: isInspected
+                    ? colorScheme.primary
+                    : colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: InkWell(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: ip));
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    SnackBar(content: Text('$label copied to clipboard')),
+                  );
+              },
+              borderRadius: BorderRadius.circular(4),
+              child: Text(
+                ip,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          IconButton(
+            icon: Icon(
+              Icons.copy_rounded,
+              size: 14,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            tooltip: 'Copy $label',
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: ip));
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  SnackBar(content: Text('$label copied to clipboard')),
+                );
+            },
+          ),
+          if (onInspect != null && !isInspected) ...[
+            const SizedBox(width: 4),
+            TextButton(
+              onPressed: onInspect,
+              style: TextButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                minimumSize: Size.zero,
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('Inspect', style: TextStyle(fontSize: 11)),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -455,12 +807,104 @@ class IpInfoScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildIpRow(
+    BuildContext context,
+    String label,
+    String? ip, {
+    bool isCurrent = false,
+    VoidCallback? onInspect,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isAvailable = ip != null && ip.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+              ),
+            ),
+          ),
+          Expanded(
+            child: SelectableText(
+              isAvailable ? ip : 'Unavailable',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                fontFamily: isAvailable ? 'monospace' : null,
+                color: isAvailable
+                    ? null
+                    : colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+          if (isAvailable) ...[
+            if (isCurrent)
+              Container(
+                margin: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'Inspecting',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.primary,
+                  ),
+                ),
+              ),
+            IconButton(
+              icon: const Icon(Icons.copy_rounded, size: 15),
+              tooltip: 'Copy $label',
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: ip));
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    SnackBar(content: Text('$label copied to clipboard')),
+                  );
+              },
+            ),
+            if (onInspect != null && !isCurrent) ...[
+              const SizedBox(width: 4),
+              OutlinedButton(
+                onPressed: onInspect,
+                style: OutlinedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  minimumSize: Size.zero,
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('Inspect', style: TextStyle(fontSize: 11)),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
   // ── 2. IP lookup ───────────────────────────────────────────────────────
 
   Widget _buildIpLookupCard(
     BuildContext context,
     IpInfoController controller,
   ) {
+    final colorScheme = Theme.of(context).colorScheme;
     final lookup = controller.lookup;
 
     if (lookup == null) {
@@ -468,7 +912,9 @@ class IpInfoScreen extends StatelessWidget {
         context,
         title: 'IP LOOKUP',
         subtitle: controller.isRunning
-            ? 'Fetching your public IP...'
+            ? (controller.isManual
+                ? 'Looking up details for ${controller.targetIp}...'
+                : 'Fetching your public IP...')
             : 'Run the check to see your IP and location',
         child: _buildEmptySection(
           context,
@@ -479,25 +925,39 @@ class IpInfoScreen extends StatelessWidget {
       ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.1, end: 0);
     }
 
-    final geo = lookup.geo;
+    final geo = controller.activeGeo ?? lookup.geo;
+    final activeIp = controller.activeIp;
     return _buildSectionCard(
       context,
       title: 'IP LOOKUP',
-      subtitle: 'Your public address, location and network',
+      subtitle: controller.isManual
+          ? 'Address details for manual query'
+          : 'Your public address, location and network',
+      trailing: controller.isManual
+          ? _buildStatusChip(context, 'MANUAL', colorScheme.primary)
+          : (lookup.ipv4 != null && lookup.ipv6 != null
+              ? _buildStatusChip(context, 'DUAL-STACK', colorScheme.tertiary)
+              : null),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildInfoRow(
+          _buildIpRow(
             context,
             'IPv4',
-            lookup.ipv4 ?? 'Unavailable',
-            monospace: true,
+            lookup.ipv4,
+            isCurrent: activeIp == lookup.ipv4,
+            onInspect: (lookup.ipv4 != null && activeIp != lookup.ipv4)
+                ? () => controller.inspectAddress(lookup.ipv4!)
+                : null,
           ),
-          _buildInfoRow(
+          _buildIpRow(
             context,
             'IPv6',
-            lookup.ipv6 ?? 'Unavailable',
-            monospace: true,
+            lookup.ipv6,
+            isCurrent: activeIp == lookup.ipv6,
+            onInspect: (lookup.ipv6 != null && activeIp != lookup.ipv6)
+                ? () => controller.inspectAddress(lookup.ipv6!)
+                : null,
           ),
           if (geo != null) ...[
             _buildInfoRow(
