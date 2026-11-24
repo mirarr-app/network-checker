@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../core/widgets/responsive_widgets.dart';
 import 'chain_controller.dart';
 
 class ChainScreen extends StatefulWidget {
@@ -33,8 +34,8 @@ class _ChainScreenState extends State<ChainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Chain (Multi-Hop Config)'),
+      appBar: const AdaptiveAppBar(
+        title: 'Chain (Multi-Hop Config)',
       ),
       body: Consumer<ChainController>(
         builder: (context, controller, child) {

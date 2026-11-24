@@ -9,6 +9,7 @@ import 'dart:io';
 
 import '../../core/services/cdn_config_scanner.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/responsive_widgets.dart';
 import 'cdn_config_scan_controller.dart';
 import 'data/cdn_scan_presets.dart';
 
@@ -36,8 +37,8 @@ class _CdnConfigScanScreenState extends State<CdnConfigScanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('CDN Config Scan'),
+      appBar: AdaptiveAppBar(
+        title: 'CDN Config Scan',
         actions: [
           Consumer<CdnConfigScanController>(
             builder: (context, controller, _) {
@@ -646,7 +647,7 @@ class _ConfigInputStepState extends State<_ConfigInputStep> {
                   OutlinedButton.icon(
                     onPressed: controller.previousStep,
                     icon: const Icon(Icons.arrow_back),
-                    label: const Text('Back'),
+                    label: const SingleLineButtonLabel('Back'),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -777,7 +778,7 @@ class _IpInputStepState extends State<_IpInputStep> {
                           }
                         },
                         icon: const Icon(Icons.dns_outlined, size: 18),
-                        label: const Text('CDN presets'),
+                        label: const SingleLineButtonLabel('CDN presets'),
                       );
                     },
                     menuChildren: [
@@ -811,7 +812,7 @@ class _IpInputStepState extends State<_IpInputStep> {
                       }
                     },
                     icon: const Icon(Icons.paste, size: 18),
-                    label: const Text('Paste'),
+                    label: const SingleLineButtonLabel('Paste'),
                   ),
                 ],
               ),
@@ -886,7 +887,7 @@ class _IpInputStepState extends State<_IpInputStep> {
                   OutlinedButton.icon(
                     onPressed: controller.previousStep,
                     icon: const Icon(Icons.arrow_back),
-                    label: const Text('Back'),
+                    label: const SingleLineButtonLabel('Back'),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -947,7 +948,7 @@ class _ScanningStep extends StatelessWidget {
                   OutlinedButton.icon(
                     onPressed: controller.isScanning ? null : controller.previousStep,
                     icon: const Icon(Icons.arrow_back),
-                    label: const Text('Back'),
+                    label: const SingleLineButtonLabel('Back'),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1118,7 +1119,7 @@ class _ScanningStep extends StatelessWidget {
                   controller.clearScanError();
                 },
                 icon: const Icon(Icons.refresh),
-                label: const Text('Try Again'),
+                label: const SingleLineButtonLabel('Try Again'),
               ),
             ],
           ),
@@ -1432,7 +1433,7 @@ class _VersionSelectionWidgetState extends State<_VersionSelectionWidget> {
             child: TextButton.icon(
               onPressed: controller.fetchLatestVersion,
               icon: const Icon(Icons.refresh),
-              label: const Text('Retry fetching latest'),
+              label: const SingleLineButtonLabel('Retry fetching latest'),
             ),
           ),
       ],
@@ -1604,7 +1605,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                       ? null
                       : TextButton(
                           onPressed: widget.onRedownload,
-                          child: const Text('Change'),
+                          child: const SingleLineButtonLabel('Change'),
                         ),
                 ),
                 const Divider(),

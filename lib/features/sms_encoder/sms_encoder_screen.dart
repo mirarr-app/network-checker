@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/widgets/responsive_widgets.dart';
 import 'sms_encoder_controller.dart';
 
 class SmsEncoderScreen extends StatefulWidget {
@@ -25,8 +26,8 @@ class _SmsEncoderScreenState extends State<SmsEncoderScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('SMS Encoder'),
+      appBar: AdaptiveAppBar(
+        title: 'SMS Encoder',
         actions: [
           Consumer<SmsEncoderController>(
             builder: (context, controller, _) {

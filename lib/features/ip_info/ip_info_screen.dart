@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/services/internet_diagnostics_service.dart';
 import '../../core/services/ip_info_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/responsive_widgets.dart';
 import 'data/ip_info_targets.dart';
 import 'ip_info_controller.dart';
 
@@ -62,8 +63,8 @@ class _IpInfoScreenState extends State<IpInfoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('IP info'),
+      appBar: AdaptiveAppBar(
+        title: 'IP info',
         actions: [
           Consumer<IpInfoController>(
             builder: (context, controller, _) {

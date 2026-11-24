@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/widgets/responsive_widgets.dart';
 import 'vless_config_modifier_controller.dart';
 
 class VlessConfigModifierScreen extends StatefulWidget {
@@ -28,8 +29,8 @@ class _VlessConfigModifierScreenState extends State<VlessConfigModifierScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('VLESS Config Modifier'),
+      appBar: AdaptiveAppBar(
+        title: 'VLESS Config Modifier',
         actions: [
           Consumer<VlessConfigModifierController>(
             builder: (context, controller, _) {

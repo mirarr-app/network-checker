@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/services/cloudflare_fix_service.dart';
+import '../../../core/widgets/responsive_widgets.dart';
 import 'cloudflare_fix_controller.dart';
 
 class CloudflareFixScreen extends StatefulWidget {
@@ -134,8 +135,8 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
     final controller = context.watch<CloudflareFixController>();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Patt\'s Cloudflare Fix'),
+      appBar: AdaptiveAppBar(
+        title: 'Patt\'s Cloudflare Fix',
         actions: [
           IconButton(
             icon: Icon(_showSettings ? Icons.tune : Icons.tune_outlined),
@@ -273,20 +274,13 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                               ? null
                               : () => controller.transform(),
                           icon: const Icon(Icons.auto_fix_high_rounded),
-                          label: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                controller.isProcessing
-                                    ? 'Transforming...'
-                                    : 'Transform to Cloudflare Fix JSON',
-                                maxLines: 1,
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                          label: SingleLineButtonLabel(
+                            controller.isProcessing
+                                ? 'Transforming...'
+                                : 'Transform to Cloudflare Fix JSON',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
@@ -400,11 +394,15 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: Wrap(
+                                    alignment: WrapAlignment.spaceBetween,
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    spacing: 8,
+                                    runSpacing: 6,
+                                    children: [
+                                      Text(
                                         'Xray Config JSON',
                                         style: TextStyle(
                                           fontSize: 14,
@@ -412,22 +410,19 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                                           color: colorScheme.primary,
                                         ),
                                       ),
-                                    ),
-                                    FilledButton.icon(
-                                      onPressed: () => _copyToClipboard(
-                                        res.formattedJson,
-                                        'Cloudflare Fix JSON',
+                                      FilledButton.icon(
+                                        onPressed: () => _copyToClipboard(
+                                          res.formattedJson,
+                                          'Cloudflare Fix JSON',
+                                        ),
+                                        icon: const Icon(Icons.copy_rounded, size: 16),
+                                        label: const SingleLineButtonLabel('Copy JSON'),
+                                        style: FilledButton.styleFrom(
+                                          visualDensity: VisualDensity.compact,
+                                        ),
                                       ),
-                                      icon: const Icon(Icons.copy_rounded, size: 16),
-                                      label: const FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        child: Text('Copy JSON', maxLines: 1),
-                                      ),
-                                      style: FilledButton.styleFrom(
-                                        visualDensity: VisualDensity.compact,
-                                      ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                                 const SizedBox(height: 10),
                                 Container(
@@ -485,10 +480,15 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header row with title & Reset button
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
+                SizedBox(
+                  width: double.infinity,
+                  child: Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      Text(
                         'Configuration & TLS Settings',
                         style: TextStyle(
                           fontSize: 16,
@@ -496,13 +496,13 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                           color: colorScheme.primary,
                         ),
                       ),
-                    ),
-                    TextButton.icon(
-                      onPressed: () => _syncControllersWithDefaults(controller),
-                      icon: const Icon(Icons.restart_alt_rounded, size: 16),
-                      label: const Text('Reset Defaults'),
-                    ),
-                  ],
+                      TextButton.icon(
+                        onPressed: () => _syncControllersWithDefaults(controller),
+                        icon: const Icon(Icons.restart_alt_rounded, size: 16),
+                        label: const SingleLineButtonLabel('Reset Defaults'),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
 

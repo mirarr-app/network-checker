@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/widgets/responsive_widgets.dart';
 import 'data/predefined_values.dart';
 import 'netlify_generator_controller.dart';
 
@@ -49,8 +50,8 @@ class _NetlifyGeneratorScreenState extends State<NetlifyGeneratorScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Netlify Generator'),
+      appBar: AdaptiveAppBar(
+        title: 'Netlify Generator',
         actions: [
           Consumer<NetlifyGeneratorController>(
             builder: (context, controller, _) {

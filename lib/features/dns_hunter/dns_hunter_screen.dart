@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/services/dns_hunter_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/responsive_widgets.dart';
 import 'dns_hunter_controller.dart';
 
 class DnsHunterScreen extends StatefulWidget {
@@ -38,8 +39,8 @@ class _DnsHunterScreenState extends State<DnsHunterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('DNS Hunter'),
+      appBar: AdaptiveAppBar(
+        title: 'DNS Hunter',
         actions: [
           Consumer<DnsHunterController>(
             builder: (context, controller, _) {
@@ -447,36 +448,41 @@ class _DnsHunterScreenState extends State<DnsHunterScreen> {
               // Phase indicator
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: isTestingSecure 
-                          ? colorScheme.tertiaryContainer 
-                          : colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isTestingSecure ? Icons.security : Icons.search,
-                          size: 16,
-                          color: isTestingSecure 
-                              ? colorScheme.onTertiaryContainer 
-                              : colorScheme.onPrimaryContainer,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          isTestingSecure ? 'Phase 2: Testing Secure DNS' : 'Phase 1: Hunting Clean DNS',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isTestingSecure 
+                            ? colorScheme.tertiaryContainer 
+                            : colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isTestingSecure ? Icons.security : Icons.search,
+                            size: 16,
                             color: isTestingSecure 
                                 ? colorScheme.onTertiaryContainer 
                                 : colorScheme.onPrimaryContainer,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              isTestingSecure ? 'Phase 2: Testing Secure DNS' : 'Phase 1: Hunting Clean DNS',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: isTestingSecure 
+                                    ? colorScheme.onTertiaryContainer 
+                                    : colorScheme.onPrimaryContainer,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -495,26 +501,31 @@ class _DnsHunterScreenState extends State<DnsHunterScreen> {
               const SizedBox(height: 12),
               
               // Stats
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildStatChip(
-                    icon: Icons.search,
-                    label: '${controller.scannedIps}/${controller.totalIps}',
-                    color: colorScheme.primary,
-                  ),
-                  _buildStatChip(
-                    icon: Icons.check_circle,
-                    label: '${controller.cleanCount} Clean',
-                    color: colorScheme.success,
-                  ),
-                  if (isTestingSecure)
+              SizedBox(
+                width: double.infinity,
+                child: Wrap(
+                  alignment: WrapAlignment.spaceAround,
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: [
                     _buildStatChip(
-                      icon: Icons.security,
-                      label: '${controller.secureCount} Secure',
-                      color: colorScheme.tertiary,
+                      icon: Icons.search,
+                      label: '${controller.scannedIps}/${controller.totalIps}',
+                      color: colorScheme.primary,
                     ),
-                ],
+                    _buildStatChip(
+                      icon: Icons.check_circle,
+                      label: '${controller.cleanCount} Clean',
+                      color: colorScheme.success,
+                    ),
+                    if (isTestingSecure)
+                      _buildStatChip(
+                        icon: Icons.security,
+                        label: '${controller.secureCount} Secure',
+                        color: colorScheme.tertiary,
+                      ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -636,55 +647,63 @@ class _DnsHunterScreenState extends State<DnsHunterScreen> {
                       ),
                       const SizedBox(height: 12),
                       if (controller.cleanResults.length > 10) ...[
-                        Row(
-                          children: [
-                            Expanded(
-                              child: FilledButton.icon(
-                                onPressed: () {
-                                  final topIps = controller.cleanResults
-                                      .take(10)
-                                      .map((result) => result.ip)
-                                      .join('\n');
-                                  Clipboard.setData(ClipboardData(text: topIps));
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Top 10 DNS IPs copied to clipboard'),
-                                      behavior: SnackBarBehavior.floating,
-                                      duration: Duration(seconds: 2),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.copy),
-                                label: const FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text('Copy Top 10 IPs', maxLines: 1),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: FilledButton.icon(
-                                onPressed: () {
-                                  final allIps = controller.cleanResults
-                                      .map((result) => result.ip)
-                                      .join('\n');
-                                  Clipboard.setData(ClipboardData(text: allIps));
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('All ${controller.cleanResults.length} DNS IPs copied to clipboard'),
-                                      behavior: SnackBarBehavior.floating,
-                                      duration: const Duration(seconds: 2),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.copy_all),
-                                label: const FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text('Copy All IPs', maxLines: 1),
-                                ),
-                              ),
-                            ),
-                          ],
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final copyTopButton = FilledButton.icon(
+                              onPressed: () {
+                                final topIps = controller.cleanResults
+                                    .take(10)
+                                    .map((result) => result.ip)
+                                    .join('\n');
+                                Clipboard.setData(ClipboardData(text: topIps));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Top 10 DNS IPs copied to clipboard'),
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.copy),
+                              label: const SingleLineButtonLabel('Copy Top 10 IPs'),
+                            );
+                            final copyAllButton = FilledButton.icon(
+                              onPressed: () {
+                                final allIps = controller.cleanResults
+                                    .map((result) => result.ip)
+                                    .join('\n');
+                                Clipboard.setData(ClipboardData(text: allIps));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('All ${controller.cleanResults.length} DNS IPs copied to clipboard'),
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.copy_all),
+                              label: const SingleLineButtonLabel('Copy All IPs'),
+                            );
+
+                            if (constraints.maxWidth < 340) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  copyTopButton,
+                                  const SizedBox(height: 8),
+                                  copyAllButton,
+                                ],
+                              );
+                            }
+
+                            return Row(
+                              children: [
+                                Expanded(child: copyTopButton),
+                                const SizedBox(width: 12),
+                                Expanded(child: copyAllButton),
+                              ],
+                            );
+                          },
                         ),
                       ] else ...[
                         SizedBox(

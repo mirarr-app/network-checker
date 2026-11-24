@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/responsive_widgets.dart';
 import '../../models/database.dart' show Preset;
 import 'domain_checker_controller.dart';
 
@@ -17,8 +18,8 @@ class DomainCheckerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Domain Checker'),
+      appBar: AdaptiveAppBar(
+        title: 'Domain Checker',
         actions: [
           Consumer<DomainCheckerController>(
             builder: (context, controller, _) {
@@ -229,7 +230,7 @@ class DomainCheckerScreen extends StatelessWidget {
                   color: colorScheme.primary,
                 ),
                 const SizedBox(width: 6),
-                Text(
+                SingleLineButtonLabel(
                   'New Preset',
                   style: TextStyle(
                     color: colorScheme.primary,
@@ -266,124 +267,140 @@ class DomainCheckerScreen extends StatelessWidget {
           ),
         ),
       ),
-      child: Row(
-        children: [
-          Icon(
-            isEditMode ? Icons.edit_attributes : Icons.settings_ethernet,
-            size: 18,
-            color: isEditMode ? colorScheme.error : colorScheme.primary,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              isEditMode 
-                  ? 'Edit Mode: Tap domains to delete' 
-                  : '${preset.name} Preset (${controller.totalCount} domains)',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: isEditMode ? colorScheme.error : colorScheme.onSurface,
-              ),
-            ),
-          ),
-          if (isEditMode) ...[
-            // Delete All Button (Soft tinted pill)
-            Material(
-              color: colorScheme.error.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => _showDeleteAllDomainsDialog(context, controller, preset),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.delete_sweep,
-                        size: 16,
-                        color: colorScheme.error,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Delete All',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.error,
-                        ),
-                      ),
-                    ],
+      child: SizedBox(
+        width: double.infinity,
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isEditMode ? Icons.edit_attributes : Icons.settings_ethernet,
+                  size: 18,
+                  color: isEditMode ? colorScheme.error : colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    isEditMode
+                        ? 'Edit Mode: Tap domains to delete'
+                        : '${preset.name} Preset (${controller.totalCount} domains)',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isEditMode ? colorScheme.error : colorScheme.onSurface,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
-            const SizedBox(width: 8),
-            // Done Button (Filled primary pill)
-            Material(
-              color: colorScheme.primary,
-              borderRadius: BorderRadius.circular(16),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => controller.setEditMode(false),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.check,
-                        size: 16,
-                        color: colorScheme.onPrimary,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Done',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onPrimary,
+            if (isEditMode)
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  // Delete All Button (Soft tinted pill)
+                  Material(
+                    color: colorScheme.error.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => _showDeleteAllDomainsDialog(context, controller, preset),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.delete_sweep,
+                              size: 16,
+                              color: colorScheme.error,
+                            ),
+                            const SizedBox(width: 6),
+                            SingleLineButtonLabel(
+                              'Delete All',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.error,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            ),
-          ] else ...[
-            // Edit List Button (Soft tinted primary pill)
-            Material(
-              color: colorScheme.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => controller.setEditMode(true),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.edit_note,
-                        size: 16,
-                        color: colorScheme.primary,
+                  // Done Button (Filled primary pill)
+                  Material(
+                    color: colorScheme.primary,
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => controller.setEditMode(false),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check,
+                              size: 16,
+                              color: colorScheme.onPrimary,
+                            ),
+                            const SizedBox(width: 6),
+                            SingleLineButtonLabel(
+                              'Done',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Edit List',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              )
+            else
+              // Edit List Button (Soft tinted primary pill)
+              Material(
+                color: colorScheme.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(16),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => controller.setEditMode(true),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.edit_note,
+                          size: 16,
                           color: colorScheme.primary,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 6),
+                        SingleLineButtonLabel(
+                          'Edit List',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -400,7 +417,7 @@ class DomainCheckerScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: const SingleLineButtonLabel('Cancel'),
             ),
             FilledButton(
               style: FilledButton.styleFrom(
@@ -419,7 +436,7 @@ class DomainCheckerScreen extends StatelessWidget {
                   );
                 }
               },
-              child: const Text('Reset'),
+              child: const SingleLineButtonLabel('Reset'),
             ),
           ],
         );
@@ -444,7 +461,7 @@ class DomainCheckerScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: const SingleLineButtonLabel('Cancel'),
             ),
             FilledButton(
               onPressed: () async {
@@ -454,7 +471,7 @@ class DomainCheckerScreen extends StatelessWidget {
                   if (context.mounted) Navigator.of(context).pop();
                 }
               },
-              child: const Text('Create'),
+              child: const SingleLineButtonLabel('Create'),
             ),
           ],
         );
@@ -479,7 +496,7 @@ class DomainCheckerScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: const SingleLineButtonLabel('Cancel'),
             ),
             FilledButton(
               onPressed: () async {
@@ -489,7 +506,7 @@ class DomainCheckerScreen extends StatelessWidget {
                   if (context.mounted) Navigator.of(context).pop();
                 }
               },
-              child: const Text('Rename'),
+              child: const SingleLineButtonLabel('Rename'),
             ),
           ],
         );
@@ -507,7 +524,7 @@ class DomainCheckerScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: const SingleLineButtonLabel('Cancel'),
             ),
             FilledButton(
               style: FilledButton.styleFrom(
@@ -518,7 +535,7 @@ class DomainCheckerScreen extends StatelessWidget {
                 await controller.deletePreset(preset.id);
                 if (context.mounted) Navigator.of(context).pop();
               },
-              child: const Text('Delete'),
+              child: const SingleLineButtonLabel('Delete'),
             ),
           ],
         );
@@ -536,7 +553,7 @@ class DomainCheckerScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: const SingleLineButtonLabel('Cancel'),
             ),
             FilledButton(
               style: FilledButton.styleFrom(
@@ -547,7 +564,7 @@ class DomainCheckerScreen extends StatelessWidget {
                 await controller.deleteAllDomainsInActivePreset();
                 if (context.mounted) Navigator.of(context).pop();
               },
-              child: const Text('Delete All'),
+              child: const SingleLineButtonLabel('Delete All'),
             ),
           ],
         );
@@ -716,7 +733,7 @@ class DomainCheckerScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: const SingleLineButtonLabel('Cancel'),
             ),
             FilledButton(
               onPressed: () {
@@ -732,7 +749,7 @@ class DomainCheckerScreen extends StatelessWidget {
                   Navigator.of(context).pop();
                 }
               },
-              child: const Text('Add'),
+              child: const SingleLineButtonLabel('Add'),
             ),
           ],
         );

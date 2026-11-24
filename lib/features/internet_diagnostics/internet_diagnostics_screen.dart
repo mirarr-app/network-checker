@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/responsive_widgets.dart';
 import '../../core/services/internet_diagnostics_service.dart';
 import '../../core/services/protocol_accessibility_service.dart';
 import 'internet_diagnostics_controller.dart';
@@ -16,8 +17,8 @@ class InternetDiagnosticsScreen extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Internet Diagnostics'),
+      appBar: AdaptiveAppBar(
+        title: 'Internet Diagnostics',
         actions: [
           Consumer<InternetDiagnosticsController>(
             builder: (context, controller, _) {
@@ -820,7 +821,9 @@ class InternetDiagnosticsScreen extends StatelessWidget {
                                   size: 20,
                                 ),
                                 const SizedBox(width: 8),
-                                const Text('Diagnostic information copied to clipboard!'),
+                                const Expanded(
+                                  child: Text('Diagnostic information copied to clipboard!'),
+                                ),
                               ],
                             ),
                             behavior: SnackBarBehavior.floating,
@@ -1109,64 +1112,42 @@ class InternetDiagnosticsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               if (summary != null) ...[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildStatBubble(
-                      context,
-                      label: 'Latency',
-                      value: summary.averageLatencyMs != null
-                          ? '${summary.averageLatencyMs}ms'
-                          : 'N/A',
-                      color: colorScheme.primary,
-                      bgColor: colorScheme.primaryContainer,
-                    ),
-                    _buildStatBubble(
-                      context,
-                      label: 'Consistency',
-                      value: '$consistencyPercent%',
-                      color: consistencyPercent >= 80
-                          ? colorScheme.success
-                          : colorScheme.warning,
-                      bgColor: consistencyPercent >= 80
-                          ? colorScheme.successContainer
-                          : colorScheme.warningContainer,
-                    ),
-                    _buildStatBubble(
-                      context,
-                      label: 'Tampering',
-                      value: '$tamperingScore/100',
-                      color: scoreColor,
-                      bgColor: scoreColor.withValues(alpha: 0.12),
-                    ),
-                  ],
-                ),
+                _buildStatBubbleWrap([
+                  _buildStatBubble(
+                    context,
+                    label: 'Latency',
+                    value: summary.averageLatencyMs != null
+                        ? '${summary.averageLatencyMs}ms'
+                        : 'N/A',
+                    color: colorScheme.primary,
+                    bgColor: colorScheme.primaryContainer,
+                  ),
+                  _buildStatBubble(
+                    context,
+                    label: 'Consistency',
+                    value: '$consistencyPercent%',
+                    color: consistencyPercent >= 80
+                        ? colorScheme.success
+                        : colorScheme.warning,
+                    bgColor: consistencyPercent >= 80
+                        ? colorScheme.successContainer
+                        : colorScheme.warningContainer,
+                  ),
+                  _buildStatBubble(
+                    context,
+                    label: 'Tampering',
+                    value: '$tamperingScore/100',
+                    color: scoreColor,
+                    bgColor: scoreColor.withValues(alpha: 0.12),
+                  ),
+                ]),
                 const SizedBox(height: 16),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final double maxWidth = constraints.maxWidth;
-                    final int crossAxisCount = (maxWidth / 220).floor().clamp(2, 6);
-                    final double itemWidth = (maxWidth - (crossAxisCount - 1) * 10) / crossAxisCount;
-                    final textScaler = MediaQuery.textScalerOf(context);
-                    final double cardHeight = textScaler.scale(85).clamp(85.0, 140.0);
-                    final double childAspectRatio = itemWidth / cardHeight;
-
-                    return GridView.builder(
-                      physics: const NeverScrollableScrollPhysics(),
-                      shrinkWrap: true,
-                      itemCount: summary.providerResults.length,
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
-                        mainAxisSpacing: 10,
-                        crossAxisSpacing: 10,
-                        childAspectRatio: childAspectRatio,
-                      ),
-                      itemBuilder: (context, index) {
-                        return _DnsProviderAnalysisCard(
-                          result: summary.providerResults[index],
-                          index: index,
-                        );
-                      },
+                _buildResponsiveDashboardGrid(
+                  itemCount: summary.providerResults.length,
+                  itemBuilder: (context, index) {
+                    return _DnsProviderAnalysisCard(
+                      result: summary.providerResults[index],
+                      index: index,
                     );
                   },
                 ),
@@ -1680,72 +1661,50 @@ class InternetDiagnosticsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               if (summary != null) ...[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildStatBubble(
-                      context,
-                      label: 'Handshake',
-                      value:
-                          '${summary.successfulHandshakes}/${summary.results.length}',
-                      color: colorScheme.success,
-                      bgColor: colorScheme.successContainer,
-                    ),
-                    _buildStatBubble(
-                      context,
-                      label: 'Avg TLS',
-                      value: summary.averageHandshakeLatencyMs != null
-                          ? '${summary.averageHandshakeLatencyMs}ms'
-                          : 'N/A',
-                      color: colorScheme.primary,
-                      bgColor: colorScheme.primaryContainer,
-                    ),
-                    _buildStatBubble(
-                      context,
-                      label: 'Cert Mismatch',
-                      value: '${summary.certificateMismatches}',
-                      color: summary.certificateMismatches == 0
-                          ? colorScheme.success
-                          : colorScheme.error,
-                      bgColor: summary.certificateMismatches == 0
-                          ? colorScheme.successContainer
-                          : colorScheme.errorContainer,
-                    ),
-                    _buildStatBubble(
-                      context,
-                      label: 'Tampering',
-                      value: '$tamperingScore/100',
-                      color: scoreColor,
-                      bgColor: scoreColor.withValues(alpha: 0.12),
-                    ),
-                  ],
-                ),
+                _buildStatBubbleWrap([
+                  _buildStatBubble(
+                    context,
+                    label: 'Handshake',
+                    value:
+                        '${summary.successfulHandshakes}/${summary.results.length}',
+                    color: colorScheme.success,
+                    bgColor: colorScheme.successContainer,
+                  ),
+                  _buildStatBubble(
+                    context,
+                    label: 'Avg TLS',
+                    value: summary.averageHandshakeLatencyMs != null
+                        ? '${summary.averageHandshakeLatencyMs}ms'
+                        : 'N/A',
+                    color: colorScheme.primary,
+                    bgColor: colorScheme.primaryContainer,
+                  ),
+                  _buildStatBubble(
+                    context,
+                    label: 'Cert Mismatch',
+                    value: '${summary.certificateMismatches}',
+                    color: summary.certificateMismatches == 0
+                        ? colorScheme.success
+                        : colorScheme.error,
+                    bgColor: summary.certificateMismatches == 0
+                        ? colorScheme.successContainer
+                        : colorScheme.errorContainer,
+                  ),
+                  _buildStatBubble(
+                    context,
+                    label: 'Tampering',
+                    value: '$tamperingScore/100',
+                    color: scoreColor,
+                    bgColor: scoreColor.withValues(alpha: 0.12),
+                  ),
+                ]),
                 const SizedBox(height: 16),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final double maxWidth = constraints.maxWidth;
-                    final int crossAxisCount = (maxWidth / 220).floor().clamp(2, 6);
-                    final double itemWidth = (maxWidth - (crossAxisCount - 1) * 10) / crossAxisCount;
-                    final textScaler = MediaQuery.textScalerOf(context);
-                    final double cardHeight = textScaler.scale(85).clamp(85.0, 140.0);
-                    final double childAspectRatio = itemWidth / cardHeight;
-
-                    return GridView.builder(
-                      physics: const NeverScrollableScrollPhysics(),
-                      shrinkWrap: true,
-                      itemCount: summary.results.length,
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
-                        mainAxisSpacing: 10,
-                        crossAxisSpacing: 10,
-                        childAspectRatio: childAspectRatio,
-                      ),
-                      itemBuilder: (context, index) {
-                        return _TlsAnalysisCard(
-                          result: summary.results[index],
-                          index: index,
-                        );
-                      },
+                _buildResponsiveDashboardGrid(
+                  itemCount: summary.results.length,
+                  itemBuilder: (context, index) {
+                    return _TlsAnalysisCard(
+                      result: summary.results[index],
+                      index: index,
                     );
                   },
                 ),
@@ -1874,86 +1833,64 @@ class InternetDiagnosticsScreen extends StatelessWidget {
 
               // Summary Stats Chips
               if (websitesCount > 0) ...[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildStatBubble(
-                      context,
-                      label: 'Reachable',
-                      value: '${controller.reachableWebsitesCount}',
-                      color: colorScheme.success,
-                      bgColor: colorScheme.successContainer,
-                    ),
-                    _buildStatBubble(
-                      context,
-                      label: 'Blocked',
-                      value: '${controller.blockedWebsitesCount}',
-                      color: colorScheme.error,
-                      bgColor: colorScheme.errorContainer,
-                    ),
-                    _buildStatBubble(
-                      context,
-                      label: 'Failed/TLS',
-                      value: '${controller.failedWebsitesCount}',
-                      color: colorScheme.warning,
-                      bgColor: colorScheme.warningContainer,
-                    ),
-                    _buildStatBubble(
-                      context,
-                      label: 'Avg Latency',
-                      value: '${controller.averageWebsiteLatencyMs}ms',
-                      color: colorScheme.primary,
-                      bgColor: colorScheme.primaryContainer,
-                    ),
-                  ],
-                ),
+                _buildStatBubbleWrap([
+                  _buildStatBubble(
+                    context,
+                    label: 'Reachable',
+                    value: '${controller.reachableWebsitesCount}',
+                    color: colorScheme.success,
+                    bgColor: colorScheme.successContainer,
+                  ),
+                  _buildStatBubble(
+                    context,
+                    label: 'Blocked',
+                    value: '${controller.blockedWebsitesCount}',
+                    color: colorScheme.error,
+                    bgColor: colorScheme.errorContainer,
+                  ),
+                  _buildStatBubble(
+                    context,
+                    label: 'Failed/TLS',
+                    value: '${controller.failedWebsitesCount}',
+                    color: colorScheme.warning,
+                    bgColor: colorScheme.warningContainer,
+                  ),
+                  _buildStatBubble(
+                    context,
+                    label: 'Avg Latency',
+                    value: '${controller.averageWebsiteLatencyMs}ms',
+                    color: colorScheme.primary,
+                    bgColor: colorScheme.primaryContainer,
+                  ),
+                ]),
                 const SizedBox(height: 16),
               ],
 
               // Staggered Grid of Website Cards
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final double maxWidth = constraints.maxWidth;
-                  final int crossAxisCount = (maxWidth / 220).floor().clamp(2, 6);
-                  final double itemWidth = (maxWidth - (crossAxisCount - 1) * 10) / crossAxisCount;
-                  final textScaler = MediaQuery.textScalerOf(context);
-                  final double cardHeight = textScaler.scale(85).clamp(85.0, 140.0);
-                  final double childAspectRatio = itemWidth / cardHeight;
+              _buildResponsiveDashboardGrid(
+                itemCount: totalCount,
+                itemBuilder: (context, index) {
+                  final target =
+                      InternetDiagnosticsController.targetWebsites[index];
+                  final name = target['name']!;
+                  final domain = target['domain']!;
 
-                  return GridView.builder(
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    itemCount: totalCount,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
-                      childAspectRatio: childAspectRatio,
-                    ),
-                    itemBuilder: (context, index) {
-                      final target =
-                          InternetDiagnosticsController.targetWebsites[index];
-                      final name = target['name']!;
-                      final domain = target['domain']!;
+                  // Check if we have results for this index
+                  final hasResult =
+                      index < controller.websiteResults.length;
+                  final result = hasResult
+                      ? controller.websiteResults[index]
+                      : null;
+                  final isCurrentlyScanning =
+                      isScanning &&
+                      index == controller.websiteResults.length;
 
-                      // Check if we have results for this index
-                      final hasResult =
-                          index < controller.websiteResults.length;
-                      final result = hasResult
-                          ? controller.websiteResults[index]
-                          : null;
-                      final isCurrentlyScanning =
-                          isScanning &&
-                          index == controller.websiteResults.length;
-
-                      return _WebsiteReachabilityCard(
-                        name: name,
-                        domain: domain,
-                        result: result,
-                        isScanning: isCurrentlyScanning,
-                        index: index,
-                      );
-                    },
+                  return _WebsiteReachabilityCard(
+                    name: name,
+                    domain: domain,
+                    result: result,
+                    isScanning: isCurrentlyScanning,
+                    index: index,
                   );
                 },
               ),
@@ -2054,82 +1991,60 @@ class InternetDiagnosticsScreen extends StatelessWidget {
 
               // Summary Stats Chips
               if (cdnsCount > 0) ...[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildStatBubble(
-                      context,
-                      label: 'Reachable',
-                      value: '${controller.reachableCdnsCount}',
-                      color: colorScheme.success,
-                      bgColor: colorScheme.successContainer,
-                    ),
-                    _buildStatBubble(
-                      context,
-                      label: 'Blocked',
-                      value: '${controller.blockedCdnsCount}',
-                      color: colorScheme.error,
-                      bgColor: colorScheme.errorContainer,
-                    ),
-                    _buildStatBubble(
-                      context,
-                      label: 'Failed/TLS',
-                      value: '${controller.failedCdnsCount}',
-                      color: colorScheme.warning,
-                      bgColor: colorScheme.warningContainer,
-                    ),
-                    _buildStatBubble(
-                      context,
-                      label: 'Avg Latency',
-                      value: '${controller.averageCdnLatencyMs}ms',
-                      color: colorScheme.primary,
-                      bgColor: colorScheme.primaryContainer,
-                    ),
-                  ],
-                ),
+                _buildStatBubbleWrap([
+                  _buildStatBubble(
+                    context,
+                    label: 'Reachable',
+                    value: '${controller.reachableCdnsCount}',
+                    color: colorScheme.success,
+                    bgColor: colorScheme.successContainer,
+                  ),
+                  _buildStatBubble(
+                    context,
+                    label: 'Blocked',
+                    value: '${controller.blockedCdnsCount}',
+                    color: colorScheme.error,
+                    bgColor: colorScheme.errorContainer,
+                  ),
+                  _buildStatBubble(
+                    context,
+                    label: 'Failed/TLS',
+                    value: '${controller.failedCdnsCount}',
+                    color: colorScheme.warning,
+                    bgColor: colorScheme.warningContainer,
+                  ),
+                  _buildStatBubble(
+                    context,
+                    label: 'Avg Latency',
+                    value: '${controller.averageCdnLatencyMs}ms',
+                    color: colorScheme.primary,
+                    bgColor: colorScheme.primaryContainer,
+                  ),
+                ]),
                 const SizedBox(height: 16),
               ],
 
               // Staggered Grid of CDN Cards
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final double maxWidth = constraints.maxWidth;
-                  final int crossAxisCount = (maxWidth / 220).floor().clamp(2, 6);
-                  final double itemWidth = (maxWidth - (crossAxisCount - 1) * 10) / crossAxisCount;
-                  final textScaler = MediaQuery.textScalerOf(context);
-                  final double cardHeight = textScaler.scale(85).clamp(85.0, 140.0);
-                  final double childAspectRatio = itemWidth / cardHeight;
+              _buildResponsiveDashboardGrid(
+                itemCount: totalCount,
+                itemBuilder: (context, index) {
+                  final target =
+                      InternetDiagnosticsController.targetCdns[index];
+                  final name = target['name']!;
+                  final domain = target['domain']!;
 
-                  return GridView.builder(
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    itemCount: totalCount,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
-                      childAspectRatio: childAspectRatio,
-                    ),
-                    itemBuilder: (context, index) {
-                      final target =
-                          InternetDiagnosticsController.targetCdns[index];
-                      final name = target['name']!;
-                      final domain = target['domain']!;
+                  final hasResult = index < controller.cdnResults.length;
+                  final result =
+                      hasResult ? controller.cdnResults[index] : null;
+                  final isCurrentScanning =
+                      index == controller.cdnResults.length;
 
-                      final hasResult = index < controller.cdnResults.length;
-                      final result =
-                          hasResult ? controller.cdnResults[index] : null;
-                      final isCurrentScanning =
-                          index == controller.cdnResults.length;
-
-                      return _CdnReachabilityCard(
-                        name: name,
-                        domain: domain,
-                        result: result,
-                        isScanning: isScanning && isCurrentScanning,
-                        index: index,
-                      );
-                    },
+                  return _CdnReachabilityCard(
+                    name: name,
+                    domain: domain,
+                    result: result,
+                    isScanning: isScanning && isCurrentScanning,
+                    index: index,
                   );
                 },
               ),
@@ -2230,68 +2145,48 @@ class InternetDiagnosticsScreen extends StatelessWidget {
 
               // Summary Stats Chips
               if (socialCount > 0) ...[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildStatBubble(
-                      context,
-                      label: 'Accessible',
-                      value: '${controller.accessibleSocialCount}',
-                      color: colorScheme.success,
-                      bgColor: colorScheme.successContainer,
-                    ),
-                    _buildStatBubble(
-                      context,
-                      label: 'Partial',
-                      value: '${controller.partialSocialCount}',
-                      color: colorScheme.warning,
-                      bgColor: colorScheme.warningContainer,
-                    ),
-                    _buildStatBubble(
-                      context,
-                      label: 'Blocked',
-                      value: '${controller.blockedSocialCount}',
-                      color: colorScheme.error,
-                      bgColor: colorScheme.errorContainer,
-                    ),
-                    _buildStatBubble(
-                      context,
-                      label: 'Avg Latency',
-                      value: '${controller.averageSocialLatencyMs}ms',
-                      color: colorScheme.primary,
-                      bgColor: colorScheme.primaryContainer,
-                    ),
-                  ],
-                ),
+                _buildStatBubbleWrap([
+                  _buildStatBubble(
+                    context,
+                    label: 'Accessible',
+                    value: '${controller.accessibleSocialCount}',
+                    color: colorScheme.success,
+                    bgColor: colorScheme.successContainer,
+                  ),
+                  _buildStatBubble(
+                    context,
+                    label: 'Partial',
+                    value: '${controller.partialSocialCount}',
+                    color: colorScheme.warning,
+                    bgColor: colorScheme.warningContainer,
+                  ),
+                  _buildStatBubble(
+                    context,
+                    label: 'Blocked',
+                    value: '${controller.blockedSocialCount}',
+                    color: colorScheme.error,
+                    bgColor: colorScheme.errorContainer,
+                  ),
+                  _buildStatBubble(
+                    context,
+                    label: 'Avg Latency',
+                    value: '${controller.averageSocialLatencyMs}ms',
+                    color: colorScheme.primary,
+                    bgColor: colorScheme.primaryContainer,
+                  ),
+                ]),
                 const SizedBox(height: 16),
               ],
 
               // Staggered Grid of Social Media Cards
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final double maxWidth = constraints.maxWidth;
-                  final int crossAxisCount = (maxWidth / 220).floor().clamp(2, 6);
-                  final double itemWidth = (maxWidth - (crossAxisCount - 1) * 10) / crossAxisCount;
-                  final textScaler = MediaQuery.textScalerOf(context);
-                  final double cardHeight = textScaler.scale(85).clamp(85.0, 140.0);
-                  final double childAspectRatio = itemWidth / cardHeight;
-
-                  return GridView.builder(
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    itemCount: totalCount,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
-                      childAspectRatio: childAspectRatio,
-                    ),
-                    itemBuilder: (context, index) {
-                      final target = InternetDiagnosticsController
-                          .targetSocialMedia[index];
-                      final name = target['name']!;
-                      final primary = target['primary']!;
-                      final secondary = target['secondary']!;
+              _buildResponsiveDashboardGrid(
+                itemCount: totalCount,
+                itemBuilder: (context, index) {
+                  final target = InternetDiagnosticsController
+                      .targetSocialMedia[index];
+                  final name = target['name']!;
+                  final primary = target['primary']!;
+                  final secondary = target['secondary']!;
 
                       // Check if we have results for this index
                       final hasResult =
@@ -2312,14 +2207,54 @@ class InternetDiagnosticsScreen extends StatelessWidget {
                         index: index,
                       );
                     },
-                  );
-                },
-              ),
-            ],
+                  ),
+                ],
           ),
         ),
       ),
     ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.05, end: 0);
+  }
+
+  Widget _buildStatBubbleWrap(List<Widget> bubbles) {
+    return SizedBox(
+      width: double.infinity,
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        spacing: 8,
+        runSpacing: 8,
+        children: bubbles,
+      ),
+    );
+  }
+
+  Widget _buildResponsiveDashboardGrid({
+    required int itemCount,
+    required IndexedWidgetBuilder itemBuilder,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double maxWidth = constraints.maxWidth;
+        final textScaler = MediaQuery.textScalerOf(context);
+        final double minCardWidth = 145.0 * textScaler.scale(1.0);
+        final int crossAxisCount = (maxWidth / minCardWidth).floor().clamp(1, 6);
+        final double itemWidth = (maxWidth - (crossAxisCount - 1) * 10) / crossAxisCount;
+        final double cardHeight = textScaler.scale(92).clamp(92.0, 150.0);
+        final double childAspectRatio = itemWidth / cardHeight;
+
+        return GridView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          itemCount: itemCount,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: childAspectRatio,
+          ),
+          itemBuilder: itemBuilder,
+        );
+      },
+    );
   }
 
   Widget _buildStatBubble(
@@ -2465,56 +2400,34 @@ class InternetDiagnosticsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               if (summaries.isNotEmpty) ...[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildStatBubble(
-                      context,
-                      label: 'Supported',
-                      value: '${controller.supportedProtocolsCount}/$totalCount',
-                      color: colorScheme.success,
-                      bgColor: colorScheme.successContainer,
-                    ),
-                    _buildStatBubble(
-                      context,
-                      label: 'Blocked',
-                      value: '${controller.blockedProtocolsCount}',
-                      color: controller.blockedProtocolsCount == 0
-                          ? colorScheme.success
-                          : colorScheme.error,
-                      bgColor: controller.blockedProtocolsCount == 0
-                          ? colorScheme.successContainer
-                          : colorScheme.errorContainer,
-                    ),
-                  ],
-                ),
+                _buildStatBubbleWrap([
+                  _buildStatBubble(
+                    context,
+                    label: 'Supported',
+                    value: '${controller.supportedProtocolsCount}/$totalCount',
+                    color: colorScheme.success,
+                    bgColor: colorScheme.successContainer,
+                  ),
+                  _buildStatBubble(
+                    context,
+                    label: 'Blocked',
+                    value: '${controller.blockedProtocolsCount}',
+                    color: controller.blockedProtocolsCount == 0
+                        ? colorScheme.success
+                        : colorScheme.error,
+                    bgColor: controller.blockedProtocolsCount == 0
+                        ? colorScheme.successContainer
+                        : colorScheme.errorContainer,
+                  ),
+                ]),
                 const SizedBox(height: 16),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final double maxWidth = constraints.maxWidth;
-                    final int crossAxisCount = (maxWidth / 220).floor().clamp(2, 6);
-                    final double itemWidth = (maxWidth - (crossAxisCount - 1) * 10) / crossAxisCount;
-                    final textScaler = MediaQuery.textScalerOf(context);
-                    final double cardHeight = textScaler.scale(85).clamp(85.0, 140.0);
-                    final double childAspectRatio = itemWidth / cardHeight;
-
-                    return GridView.builder(
-                      physics: const NeverScrollableScrollPhysics(),
-                      shrinkWrap: true,
-                      itemCount: summaries.length,
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                        childAspectRatio: childAspectRatio,
-                      ),
-                      itemBuilder: (context, index) {
-                        final summary = summaries[index];
-                        return _ProtocolSummaryGridCard(
-                          summary: summary,
-                          index: index,
-                        );
-                      },
+                _buildResponsiveDashboardGrid(
+                  itemCount: summaries.length,
+                  itemBuilder: (context, index) {
+                    final summary = summaries[index];
+                    return _ProtocolSummaryGridCard(
+                      summary: summary,
+                      index: index,
                     );
                   },
                 ),
@@ -2883,27 +2796,34 @@ class _ProtocolSummaryGridCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: badgeBgColor,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      summary.isSupported
-                          ? 'SUPPORTED'
-                          : (summary.isBlocked ? 'BLOCKED' : 'FAILED'),
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        color: badgeTextColor,
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: badgeBgColor,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          summary.isSupported
+                              ? 'SUPPORTED'
+                              : (summary.isBlocked ? 'BLOCKED' : 'FAILED'),
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: badgeTextColor,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                  if (summary.isSupported && summary.averageLatencyMs > 0)
+                  if (summary.isSupported && summary.averageLatencyMs > 0) ...[
+                    const SizedBox(width: 4),
                     Text(
                       '${summary.averageLatencyMs}ms',
                       style: TextStyle(
@@ -2914,6 +2834,7 @@ class _ProtocolSummaryGridCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                  ],
                 ],
               ),
             ],
@@ -3180,24 +3101,31 @@ class _DnsProviderAnalysisCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      statusText,
-                      style: TextStyle(
-                        fontSize: 8.5,
-                        fontWeight: FontWeight.bold,
-                        color: statusColor,
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          statusText,
+                          style: TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.bold,
+                            color: statusColor,
+                          ),
+                        ),
                       ),
                     ),
                   ),
+                  const SizedBox(width: 4),
                   Text(
                     result.averageLatencyMs != null
                         ? '${result.averageLatencyMs}ms'
@@ -3507,24 +3435,31 @@ class _TlsAnalysisCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      statusText,
-                      style: TextStyle(
-                        fontSize: 8.5,
-                        fontWeight: FontWeight.bold,
-                        color: statusColor,
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          statusText,
+                          style: TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.bold,
+                            color: statusColor,
+                          ),
+                        ),
                       ),
                     ),
                   ),
+                  const SizedBox(width: 4),
                   Text(
                     result.handshakeLatencyMs != null
                         ? '${result.handshakeLatencyMs}ms'
@@ -3899,40 +3834,47 @@ class _WebsiteReachabilityCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // Status Badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusBgColor,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isScanning) ...[
-                          const SizedBox(
-                            width: 8,
-                            height: 8,
-                            child: CircularProgressIndicator(strokeWidth: 1.5),
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        Text(
-                          statusText,
-                          style: TextStyle(
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.bold,
-                            color: statusTextColor,
-                          ),
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
                         ),
-                      ],
+                        decoration: BoxDecoration(
+                          color: statusBgColor,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isScanning) ...[
+                              const SizedBox(
+                                width: 8,
+                                height: 8,
+                                child: CircularProgressIndicator(strokeWidth: 1.5),
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Text(
+                              statusText,
+                              style: TextStyle(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.bold,
+                                color: statusTextColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
 
                   // Latency Pill
-                  if (showLatency)
+                  if (showLatency) ...[
+                    const SizedBox(width: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 6,
@@ -3951,6 +3893,7 @@ class _WebsiteReachabilityCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                  ],
                 ],
               ),
             ],
@@ -4631,27 +4574,35 @@ class _SocialMediaCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusBgColor,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      statusText,
-                      style: TextStyle(
-                        fontSize: 8.5,
-                        fontWeight: FontWeight.bold,
-                        color: statusTextColor,
-                        letterSpacing: 0.5,
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusBgColor,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          statusText,
+                          style: TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.bold,
+                            color: statusTextColor,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                  if (showLatency)
+                  if (showLatency) ...[
+                    const SizedBox(width: 4),
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           Icons.flash_on_rounded,
@@ -4671,6 +4622,7 @@ class _SocialMediaCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                  ],
                 ],
               ),
             ],
@@ -4921,13 +4873,17 @@ class _SocialMediaCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -5174,42 +5130,49 @@ class _CdnReachabilityCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // Status Badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusBgColor,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isScanning) ...[
-                          const SizedBox(
-                            width: 8,
-                            height: 8,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 1.2,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        Text(
-                          statusText,
-                          style: TextStyle(
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.bold,
-                            color: statusTextColor,
-                          ),
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
                         ),
-                      ],
+                        decoration: BoxDecoration(
+                          color: statusBgColor,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isScanning) ...[
+                              const SizedBox(
+                                width: 8,
+                                height: 8,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.2,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Text(
+                              statusText,
+                              style: TextStyle(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.bold,
+                                color: statusTextColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
 
                   // Latency Label
-                  if (showLatency)
+                  if (showLatency) ...[
+                    const SizedBox(width: 4),
                     Text(
                       '${result!.latencyMs}ms',
                       style: TextStyle(
@@ -5218,6 +5181,7 @@ class _CdnReachabilityCard extends StatelessWidget {
                         color: colorScheme.primary,
                       ),
                     ),
+                  ],
                 ],
               ),
             ],

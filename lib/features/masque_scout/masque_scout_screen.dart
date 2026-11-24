@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/services/masque_scout_scanner.dart';
+import '../../core/widgets/responsive_widgets.dart';
 import 'data/masque_ip_ranges.dart';
 import 'masque_scout_controller.dart';
 
@@ -47,8 +48,8 @@ class _MasqueScoutScreenState extends State<MasqueScoutScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Masque Scout'),
+      appBar: AdaptiveAppBar(
+        title: 'Masque Scout',
         actions: [
           Consumer<MasqueScoutController>(
             builder: (context, controller, _) {

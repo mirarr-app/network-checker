@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/services/sni_spoof_check_service.dart';
+import '../../../core/widgets/responsive_widgets.dart';
 import 'sni_spoof_check_controller.dart';
 
 class SniSpoofCheckScreen extends StatefulWidget {
@@ -45,8 +46,8 @@ class _SniSpoofCheckScreenState extends State<SniSpoofCheckScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('SNI Spoof Check'),
+      appBar: AdaptiveAppBar(
+        title: 'SNI Spoof Check',
         actions: [
           Consumer<SniSpoofCheckController>(
             builder: (context, controller, _) => Row(

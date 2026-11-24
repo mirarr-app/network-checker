@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../core/services/cloudflare_fix_service.dart';
+import '../../../core/widgets/responsive_widgets.dart';
 import 'add_ech_controller.dart';
 
 class AddEchScreen extends StatefulWidget {
@@ -69,8 +70,8 @@ class _AddEchScreenState extends State<AddEchScreen> {
     final controller = context.watch<AddEchController>();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add ECH'),
+      appBar: AdaptiveAppBar(
+        title: 'Add ECH',
         actions: [
           IconButton(
             icon: Icon(_showSettings ? Icons.tune : Icons.tune_outlined),
@@ -186,30 +187,34 @@ class _AddEchScreenState extends State<AddEchScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
+            SizedBox(
+              width: double.infinity,
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  Text(
                     'Input Proxy Config or Share Link',
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: colorScheme.primary,
                     ),
                   ),
-                ),
-                TextButton.icon(
-                  onPressed: () {
-                    _textController.text = _exampleVlessUrl;
-                    controller.setInputText(_exampleVlessUrl);
-                  },
-                  icon: const Icon(Icons.lightbulb_outline, size: 16),
-                  label: const FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text('Sample', style: TextStyle(fontSize: 12), maxLines: 1),
+                  TextButton.icon(
+                    onPressed: () {
+                      _textController.text = _exampleVlessUrl;
+                      controller.setInputText(_exampleVlessUrl);
+                    },
+                    icon: const Icon(Icons.lightbulb_outline, size: 16),
+                    label: const SingleLineButtonLabel(
+                      'Sample',
+                      style: TextStyle(fontSize: 12),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -261,27 +266,31 @@ class _AddEchScreenState extends State<AddEchScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
+            SizedBox(
+              width: double.infinity,
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  Text(
                     'ECH & TLS Settings',
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: colorScheme.primary,
                     ),
                   ),
-                ),
-                TextButton.icon(
-                  onPressed: () => _syncControllersWithDefaults(controller),
-                  icon: const Icon(Icons.restart_alt, size: 16),
-                  label: const FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text('Reset', style: TextStyle(fontSize: 12), maxLines: 1),
+                  TextButton.icon(
+                    onPressed: () => _syncControllersWithDefaults(controller),
+                    icon: const Icon(Icons.restart_alt, size: 16),
+                    label: const SingleLineButtonLabel(
+                      'Reset',
+                      style: TextStyle(fontSize: 12),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 12),
 

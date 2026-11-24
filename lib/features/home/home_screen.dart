@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_config.dart';
 import '../../core/services/version_check_service.dart';
 import '../../core/widgets/custom_title_bar.dart';
+import '../../core/widgets/responsive_widgets.dart';
 import '../about/about_screen.dart';
 import '../cdn_config_scan/cdn_config_scan_screen.dart';
 import '../dns_hunter/dns_hunter_screen.dart';
@@ -61,12 +62,10 @@ class _HomeScreenState extends State<HomeScreen> {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.system_update, color: Colors.amber),
-            SizedBox(width: 8),
-            Text('Update available'),
-          ],
+        title: const DialogTitleRow(
+          icon: Icons.system_update,
+          iconColor: Colors.amber,
+          title: 'Update available',
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -88,7 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Later'),
+            child: const SingleLineButtonLabel('Later'),
           ),
           FilledButton.icon(
             onPressed: () async {
@@ -289,44 +288,30 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       key: _scaffoldKey,
       drawer: _buildDrawer(),
-      body: Stack(
-        children: [
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            transitionBuilder: (child, animation) {
-              return FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0.05, 0),
-                    end: Offset.zero,
-                  ).animate(CurvedAnimation(
-                    parent: animation,
-                    curve: Curves.easeOutCubic,
-                  )),
-                  child: child,
-                ),
-              );
-            },
-            child: KeyedSubtree(
-              key: ValueKey(_selectedIndex),
-              child: _screens[_selectedIndex],
-            ),
-          ),
-          Positioned(
-            top: MediaQuery.paddingOf(context).top + 4,
-            left: 8,
-            child: Material(
-              color: Theme.of(context).colorScheme.surfaceContainerHigh.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(20),
-              child: IconButton(
-                icon: const Icon(Icons.menu),
-                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                tooltip: 'Open menu',
+      body: HomeDrawerScope(
+        openDrawer: () => _scaffoldKey.currentState?.openDrawer(),
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          transitionBuilder: (child, animation) {
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.05, 0),
+                  end: Offset.zero,
+                ).animate(CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                )),
+                child: child,
               ),
-            ),
+            );
+          },
+          child: KeyedSubtree(
+            key: ValueKey(_selectedIndex),
+            child: _screens[_selectedIndex],
           ),
-        ],
+        ),
       ),
     );
   }

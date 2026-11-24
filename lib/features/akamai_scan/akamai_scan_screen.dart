@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/services/akamai_ip_scanner.dart';
+import '../../core/widgets/responsive_widgets.dart';
 import 'data/akamai_ip_ranges.dart';
 import 'akamai_scan_controller.dart';
 
@@ -55,8 +56,8 @@ class _AkamaiScanScreenState extends State<AkamaiScanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Akamai IP Scanner'),
+      appBar: AdaptiveAppBar(
+        title: 'Akamai IP Scanner',
         actions: [
           Consumer<AkamaiScanController>(
             builder: (context, controller, _) {

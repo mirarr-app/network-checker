@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../core/widgets/responsive_widgets.dart';
 import 'load_balancer_controller.dart';
 
 class LoadBalancerScreen extends StatefulWidget {
@@ -56,43 +57,42 @@ class _LoadBalancerScreenState extends State<LoadBalancerScreen> {
     showDialog<void>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.playlist_add_rounded, size: 24),
-            SizedBox(width: 8),
-            Text('Bulk Import Configs / URIs'),
-          ],
+        title: const DialogTitleRow(
+          icon: Icons.playlist_add_rounded,
+          title: 'Bulk Import Configs / URIs',
         ),
         content: SizedBox(
           width: 500,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Paste multiple share links (one per line) or complete Xray JSON configs below:',
-                style: TextStyle(fontSize: 13),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: bulkTextController,
-                maxLines: 8,
-                minLines: 4,
-                style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
-                decoration: InputDecoration(
-                  hintText: 'vless://...\nvless://...\n{\n  "outbounds": [...]\n}',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Paste multiple share links (one per line) or complete Xray JSON configs below:',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: bulkTextController,
+                  maxLines: 8,
+                  minLines: 4,
+                  style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                  decoration: InputDecoration(
+                    hintText: 'vless://...\nvless://...\n{\n  "outbounds": [...]\n}',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: const Text('Cancel'),
+            child: const SingleLineButtonLabel('Cancel'),
           ),
           FilledButton.icon(
             onPressed: () {
@@ -117,8 +117,8 @@ class _LoadBalancerScreenState extends State<LoadBalancerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Load Balancer'),
+      appBar: const AdaptiveAppBar(
+        title: 'Load Balancer',
       ),
       body: Consumer<LoadBalancerController>(
         builder: (context, controller, child) {
@@ -234,49 +234,52 @@ class _LoadBalancerScreenState extends State<LoadBalancerScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Proxy Nodes',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${configs.length}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onPrimaryContainer,
+            SizedBox(
+              width: double.infinity,
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'Proxy Nodes',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.primary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: () => _showBulkImportDialog(context, controller),
-                  icon: const Icon(Icons.playlist_add_rounded, size: 18),
-                  label: const FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text('Bulk Import', maxLines: 1),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${configs.length}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                  FilledButton.tonalIcon(
+                    onPressed: () => _showBulkImportDialog(context, controller),
+                    icon: const Icon(Icons.playlist_add_rounded, size: 18),
+                    label: const SingleLineButtonLabel('Bulk Import'),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
             ListView.separated(

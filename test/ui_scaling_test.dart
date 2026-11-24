@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:rdnbenet/app.dart';
+import 'package:rdnbenet/core/theme/app_theme.dart';
 import 'package:rdnbenet/features/about/about_screen.dart';
 import 'package:rdnbenet/features/akamai_scan/akamai_scan_controller.dart';
 import 'package:rdnbenet/features/akamai_scan/akamai_scan_screen.dart';
@@ -77,6 +79,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<LoadBalancerController>.value(
             value: controller,
             child: const LoadBalancerScreen(),
@@ -85,7 +88,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('Generate Balancer Config'), findsOneWidget);
       expect(find.text('Clear'), findsOneWidget);
     });
@@ -105,6 +109,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<ChainController>.value(
             value: controller,
             child: const ChainScreen(),
@@ -113,7 +118,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('Generate Xray Profile'), findsOneWidget);
       expect(find.text('Clear'), findsOneWidget);
     });
@@ -133,6 +139,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<CloudflareFixController>.value(
             value: controller,
             child: const CloudflareFixScreen(),
@@ -141,7 +148,8 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 2));
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('Transform to Cloudflare Fix JSON'), findsOneWidget);
     });
 
@@ -160,6 +168,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<AddEchController>.value(
             value: controller,
             child: const AddEchScreen(),
@@ -168,7 +177,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('Add ECH & Generate JSON'), findsOneWidget);
       expect(find.text('Clear'), findsOneWidget);
     });
@@ -188,6 +198,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<DomainCheckerController>.value(
             value: controller,
             child: const DomainCheckerScreen(),
@@ -196,7 +207,8 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 1));
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('Domain Checker'), findsOneWidget);
     });
 
@@ -216,6 +228,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<EdgeIpCheckerController>.value(
             value: controller,
             child: const EdgeIpCheckerScreen(),
@@ -224,7 +237,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('Edge IP Scanner'), findsOneWidget);
       expect(find.text('CF'), findsWidgets);
     });
@@ -244,6 +258,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<AkamaiScanController>.value(
             value: controller,
             child: const AkamaiScanScreen(),
@@ -252,7 +267,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('Akamai IP Scanner'), findsOneWidget);
       expect(find.text('Load Akamai IPs'), findsOneWidget);
     });
@@ -272,6 +288,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<CdnConfigScanController>.value(
             value: controller,
             child: const CdnConfigScanScreen(),
@@ -280,7 +297,8 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 1));
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('CDN Config Scan'), findsOneWidget);
     });
 
@@ -299,6 +317,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<DnsHunterController>.value(
             value: controller,
             child: const DnsHunterScreen(),
@@ -307,7 +326,8 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 1));
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('DNS Hunter'), findsOneWidget);
     });
 
@@ -326,6 +346,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<DnsScannerController>.value(
             value: controller,
             child: const DnsScannerScreen(),
@@ -334,7 +355,8 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 1));
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('DNS Scanner'), findsOneWidget);
     });
 
@@ -353,6 +375,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<IpInfoController>.value(
             value: controller,
             child: const IpInfoScreen(),
@@ -361,7 +384,8 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 1));
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('IP info'), findsOneWidget);
     });
 
@@ -383,7 +407,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('Network Checker'), findsOneWidget);
       expect(find.text('Open'), findsOneWidget);
       expect(find.text('Copy'), findsOneWidget);
@@ -404,6 +429,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<SniSpoofCheckController>.value(
             value: controller,
             child: const SniSpoofCheckScreen(),
@@ -412,7 +438,8 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 1));
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('SNI Spoof Check'), findsOneWidget);
       expect(find.text('Defaults'), findsOneWidget);
     });
@@ -432,6 +459,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<NetlifyGeneratorController>.value(
             value: controller,
             child: const NetlifyGeneratorScreen(),
@@ -440,7 +468,8 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 1));
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('Netlify Generator'), findsOneWidget);
     });
 
@@ -459,6 +488,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<MasqueScoutController>.value(
             value: controller,
             child: const MasqueScoutScreen(),
@@ -467,7 +497,8 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 1));
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('Masque Scout'), findsOneWidget);
     });
 
@@ -486,6 +517,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<VlessConfigModifierController>.value(
             value: controller,
             child: const VlessConfigModifierScreen(),
@@ -494,7 +526,8 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 1));
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('VLESS Config Modifier'), findsOneWidget);
     });
 
@@ -513,6 +546,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<SmsEncoderController>.value(
             value: controller,
             child: const SmsEncoderScreen(),
@@ -521,7 +555,8 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 1));
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('SMS Encoder'), findsOneWidget);
     });
 
@@ -540,6 +575,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          theme: AppTheme.lightTheme(),
           home: ChangeNotifierProvider<InternetDiagnosticsController>.value(
             value: controller,
             child: const InternetDiagnosticsScreen(),
@@ -548,8 +584,173 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 1));
 
-      expect(tester.takeException(), isNull);
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
       expect(find.text('Internet Diagnostics'), findsOneWidget);
     });
+
+    testWidgets('HomeScreen mobile layout renders AdaptiveAppBar menu and drawer cleanly on 320x568 with 1.35x font', (tester) async {
+      tester.view.physicalSize = const Size(320, 568);
+      tester.view.devicePixelRatio = 1.0;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.35;
+
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+
+      await tester.pumpWidget(const RdnbenetApp());
+      await tester.pump(const Duration(milliseconds: 500));
+
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
+      expect(find.byIcon(Icons.menu), findsOneWidget);
+      expect(find.text('Internet Diagnostics'), findsOneWidget);
+    });
+
+    testWidgets('CloudflareFixScreen settings panel and action button stay single-line on 320x568 with 1.35x font', (tester) async {
+      tester.view.physicalSize = const Size(320, 568);
+      tester.view.devicePixelRatio = 1.0;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.35;
+
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+
+      final controller = CloudflareFixController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: ChangeNotifierProvider<CloudflareFixController>.value(
+            value: controller,
+            child: const CloudflareFixScreen(),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(seconds: 1));
+
+      // Open settings panel to verify 'Reset Defaults' stays single-line
+      await tester.tap(find.byTooltip('Toggle Settings'));
+      await tester.pumpAndSettle();
+
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
+      _expectSingleLineLabel(tester, 'Reset Defaults');
+      _expectSingleLineLabel(tester, 'Transform to Cloudflare Fix JSON');
+    });
+
+    testWidgets('DomainCheckerScreen edit mode pills and dialogs stay single-line on 320x568 with 1.35x font', (tester) async {
+      tester.view.physicalSize = const Size(320, 568);
+      tester.view.devicePixelRatio = 1.0;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.35;
+
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+
+      final controller = DomainCheckerController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: ChangeNotifierProvider<DomainCheckerController>.value(
+            value: controller,
+            child: const DomainCheckerScreen(),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(seconds: 2));
+
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
+      expect(find.text('Domain Checker'), findsOneWidget);
+      if (find.text('New Preset').evaluate().isNotEmpty) {
+        _expectSingleLineLabel(tester, 'New Preset');
+      }
+    });
+
+    testWidgets('LoadBalancerScreen bulk import dialog fits on 320x568 with 1.35x font without overflow', (tester) async {
+      tester.view.physicalSize = const Size(320, 568);
+      tester.view.devicePixelRatio = 1.0;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.35;
+
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+
+      final controller = LoadBalancerController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: ChangeNotifierProvider<LoadBalancerController>.value(
+            value: controller,
+            child: const LoadBalancerScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Bulk Import'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Bulk Import'));
+      await tester.pumpAndSettle();
+
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
+      expect(find.text('Bulk Import Configs / URIs'), findsOneWidget);
+      _expectSingleLineLabel(tester, 'Cancel');
+      _expectSingleLineLabel(tester, 'Import');
+    });
+
+    testWidgets('EdgeIpCheckerScreen settings dialog fits on 320x568 with 1.35x font without overflow', (tester) async {
+      tester.view.physicalSize = const Size(320, 568);
+      tester.view.devicePixelRatio = 1.0;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.35;
+
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+
+      final controller = EdgeIpCheckerController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme(),
+          home: ChangeNotifierProvider<EdgeIpCheckerController>.value(
+            value: controller,
+            child: const EdgeIpCheckerScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Settings'));
+      await tester.pumpAndSettle();
+
+      final err = tester.takeException();
+      expect(err, isNull, reason: err is FlutterError ? err.toStringDeep() : err?.toString());
+      _expectSingleLineLabel(tester, 'Cancel');
+      _expectSingleLineLabel(tester, 'Save');
+    });
   });
+}
+
+void _expectSingleLineLabel(WidgetTester tester, String text) {
+  final finder = find.text(text);
+  expect(finder, findsWidgets);
+  final textWidget = tester.widget<Text>(finder.first);
+  expect(textWidget.maxLines, 1, reason: 'Button "$text" must constrain maxLines to 1');
+  final paragraph = tester.renderObject<RenderParagraph>(finder.first);
+  expect(paragraph.didExceedMaxLines, isFalse, reason: 'Button "$text" overflowed maxLines');
 }

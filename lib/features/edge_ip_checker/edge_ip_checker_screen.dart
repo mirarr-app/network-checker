@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/services/edge_ip_scanner.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/responsive_widgets.dart';
 import 'cf_ip_ranges.dart';
 import 'edge_ip_checker_controller.dart';
 
@@ -56,8 +57,8 @@ class _EdgeIpCheckerScreenState extends State<EdgeIpCheckerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edge IP Scanner'),
+      appBar: AdaptiveAppBar(
+        title: 'Edge IP Scanner',
         actions: [
           Consumer<EdgeIpCheckerController>(
             builder: (context, controller, _) {
@@ -1147,7 +1148,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: const SingleLineButtonLabel('Cancel'),
         ),
         FilledButton(
           onPressed: () {
@@ -1161,7 +1162,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
             );
             Navigator.pop(context, newConfig);
           },
-          child: const Text('Save'),
+          child: const SingleLineButtonLabel('Save'),
         ),
       ],
     );

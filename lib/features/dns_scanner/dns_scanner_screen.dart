@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/responsive_widgets.dart';
 import 'dns_scanner_controller.dart';
 
 class DnsScannerScreen extends StatelessWidget {
@@ -12,8 +13,8 @@ class DnsScannerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('DNS Scanner'),
+      appBar: AdaptiveAppBar(
+        title: 'DNS Scanner',
         actions: [
           Consumer<DnsScannerController>(
             builder: (context, controller, _) {

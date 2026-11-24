@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_config.dart';
+import '../../core/widgets/responsive_widgets.dart';
 
 const _githubUrl = 'https://github.com/mirarr-app/network-checker';
 
@@ -43,8 +44,9 @@ class _AboutScreenState extends State<AboutScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final hasDrawerScope = HomeDrawerScope.maybeOf(context) != null;
 
-    return Center(
+    final body = Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: Column(
@@ -251,5 +253,13 @@ class _AboutScreenState extends State<AboutScreen> {
         ),
       ),
     );
+
+    if (hasDrawerScope) {
+      return Scaffold(
+        appBar: const AdaptiveAppBar(title: 'About'),
+        body: body,
+      );
+    }
+    return body;
   }
 }
