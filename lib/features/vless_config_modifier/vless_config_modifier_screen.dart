@@ -150,7 +150,10 @@ class _VlessConfigModifierScreenState extends State<VlessConfigModifierScreen> {
                           ),
                         )
                       : const Icon(Icons.autorenew),
-                  label: Text(controller.isProcessing ? 'Generating...' : 'Generate Configs'),
+                  label: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(controller.isProcessing ? 'Generating...' : 'Generate Configs', maxLines: 1),
+                  ),
                 ).animate().fadeIn(delay: 200.ms).scale(delay: 200.ms),
                 
                 const SizedBox(height: 24),
@@ -293,7 +296,10 @@ class _VlessConfigModifierScreenState extends State<VlessConfigModifierScreen> {
                 }
               },
               icon: const Icon(Icons.copy_all, size: 18),
-              label: const Text('Copy All'),
+              label: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('Copy All', maxLines: 1),
+              ),
             ),
           ],
         ).animate().fadeIn(delay: 300.ms),
@@ -338,7 +344,10 @@ class _VlessConfigModifierScreenState extends State<VlessConfigModifierScreen> {
                       const SizedBox(height: 8),
                       FilledButton.tonal(
                         onPressed: controller.loadMore,
-                        child: const Text('Load More'),
+                        child: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Load More', maxLines: 1),
+                        ),
                       ),
                     ],
                   ),

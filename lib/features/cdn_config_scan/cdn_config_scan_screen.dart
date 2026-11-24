@@ -103,30 +103,33 @@ class _CdnConfigScanScreenState extends State<CdnConfigScanScreen> {
           bottom: BorderSide(color: colorScheme.outlineVariant),
         ),
       ),
-      child: Row(
-        children: List.generate(steps.length, (index) {
-          final isActive = index == controller.currentStep.index;
-          final isCompleted = index < controller.currentStep.index;
-          final (label, icon) = steps[index];
-          
-          return Expanded(
-            child: Row(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(steps.length, (index) {
+            final isActive = index == controller.currentStep.index;
+            final isCompleted = index < controller.currentStep.index;
+            final (label, icon) = steps[index];
+            
+            return Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 if (index > 0)
-                  Expanded(
-                    child: Container(
-                      height: 2,
-                      color: isCompleted || isActive
-                          ? colorScheme.primary
-                          : colorScheme.outlineVariant,
-                    ),
+                  Container(
+                    width: 16,
+                    height: 2,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    color: isCompleted || isActive
+                        ? colorScheme.primary
+                        : colorScheme.outlineVariant,
                   ),
                 GestureDetector(
                   onTap: isCompleted
                       ? () => controller.goToStep(CdnScanStep.values[index])
                       : null,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: isActive
                           ? colorScheme.primaryContainer
@@ -164,19 +167,10 @@ class _CdnConfigScanScreenState extends State<CdnConfigScanScreen> {
                     ),
                   ),
                 ),
-                if (index < steps.length - 1)
-                  Expanded(
-                    child: Container(
-                      height: 2,
-                      color: isCompleted
-                          ? colorScheme.primary
-                          : colorScheme.outlineVariant,
-                    ),
-                  ),
               ],
-            ),
-          );
-        }),
+            );
+          }),
+        ),
       ),
     );
   }
@@ -474,7 +468,10 @@ class _BinarySetupStep extends StatelessWidget {
         return FilledButton.icon(
           onPressed: controller.nextStep,
           icon: const Icon(Icons.arrow_forward),
-          label: const Text('Continue to Config'),
+          label: const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text('Continue to Config', maxLines: 1),
+          ),
         );
 
       case BinaryDownloadState.notInstalled:
@@ -484,9 +481,15 @@ class _BinarySetupStep extends StatelessWidget {
               ? controller.downloadXray
               : null,
           icon: const Icon(Icons.download),
-          label: Text(controller.versionToDownload != null
-              ? 'Download ${controller.versionToDownload}'
-              : 'Download Xray'),
+          label: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              controller.versionToDownload != null
+                  ? 'Download ${controller.versionToDownload}'
+                  : 'Download Xray',
+              maxLines: 1,
+            ),
+          ),
         );
 
       default:
@@ -650,7 +653,10 @@ class _ConfigInputStepState extends State<_ConfigInputStep> {
                     child: FilledButton.icon(
                       onPressed: controller.isConfigValid ? controller.nextStep : null,
                       icon: const Icon(Icons.arrow_forward),
-                      label: const Text('Continue to IPs'),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('Continue to IPs', maxLines: 1),
+                      ),
                     ),
                   ),
                 ],
@@ -890,10 +896,14 @@ class _IpInputStepState extends State<_IpInputStep> {
                           ? controller.nextStep
                           : null,
                       icon: const Icon(Icons.play_arrow),
-                      label: Text(
-                        controller.isParsingIps
-                            ? 'Parsing IPs...'
-                            : 'Start Scan (${controller.parsedIpCount} IPs)',
+                      label: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          controller.isParsingIps
+                              ? 'Parsing IPs...'
+                              : 'Start Scan (${controller.parsedIpCount} IPs)',
+                          maxLines: 1,
+                        ),
                       ),
                     ),
                   ),
@@ -945,7 +955,10 @@ class _ScanningStep extends StatelessWidget {
                         ? FilledButton.icon(
                             onPressed: controller.stopScan,
                             icon: const Icon(Icons.stop),
-                            label: const Text('Stop Scan'),
+                            label: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text('Stop Scan', maxLines: 1),
+                            ),
                             style: FilledButton.styleFrom(
                               backgroundColor: colorScheme.error,
                             ),
@@ -955,7 +968,10 @@ class _ScanningStep extends StatelessWidget {
                                 ? controller.startScan
                                 : null,
                             icon: const Icon(Icons.refresh),
-                            label: const Text('Scan Again'),
+                            label: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text('Scan Again', maxLines: 1),
+                            ),
                           ),
                   ),
                 ],
@@ -1167,7 +1183,11 @@ class _ScanningStep extends StatelessWidget {
         // Header with stats and copy buttons
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
             children: [
               Text(
                 'Results (${results.length})',
@@ -1177,26 +1197,32 @@ class _ScanningStep extends StatelessWidget {
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),
-              const Spacer(),
               if (results.isNotEmpty)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     if (results.length > 10) ...[
                       TextButton.icon(
                         onPressed: () => _copyResultsIps(context, results),
                         icon: const Icon(Icons.copy, size: 16),
-                        label: const Text('Copy Top 10'),
+                        label: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Copy Top 10', maxLines: 1),
+                        ),
                         style: TextButton.styleFrom(
                           visualDensity: VisualDensity.compact,
                         ),
                       ),
-                      const SizedBox(width: 8),
                     ],
                     TextButton.icon(
                       onPressed: () => _copyResultsIps(context, results, copyAll: true),
                       icon: const Icon(Icons.copy_all, size: 16),
-                      label: const Text('Copy All'),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('Copy All', maxLines: 1),
+                      ),
                       style: TextButton.styleFrom(
                         visualDensity: VisualDensity.compact,
                       ),
@@ -1589,7 +1615,7 @@ class _SettingsDialogState extends State<_SettingsDialog> {
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: 'Parallel Tests',
-                  helperText: 'Default: ${defaultParallel} (2 x CPU cores)',
+                  helperText: 'Default: $defaultParallel (2 x CPU cores)',
                 ),
               ),
               if (showWarning) ...[
@@ -1635,7 +1661,10 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text('Cancel', maxLines: 1),
+          ),
         ),
         FilledButton(
           onPressed: () {
@@ -1651,7 +1680,10 @@ class _SettingsDialogState extends State<_SettingsDialog> {
             );
             Navigator.pop(context, newConfig);
           },
-          child: const Text('Save'),
+          child: const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text('Save', maxLines: 1),
+          ),
         ),
       ],
     );

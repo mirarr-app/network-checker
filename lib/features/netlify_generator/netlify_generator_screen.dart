@@ -232,7 +232,10 @@ class _NetlifyGeneratorScreenState extends State<NetlifyGeneratorScreen> {
                           ),
                         )
                       : const Icon(Icons.bolt),
-                  label: Text(controller.isProcessing ? 'Generating...' : 'Generate Netlify Configs'),
+                  label: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(controller.isProcessing ? 'Generating...' : 'Generate Netlify Configs', maxLines: 1),
+                  ),
                 ).animate().fadeIn(delay: 300.ms).scale(delay: 300.ms),
                 
                 const SizedBox(height: 24),
@@ -361,7 +364,10 @@ class _NetlifyGeneratorScreenState extends State<NetlifyGeneratorScreen> {
                 TextButton.icon(
                   onPressed: onAction,
                   icon: const Icon(Icons.auto_fix_high, size: 16),
-                  label: Text(actionLabel, style: const TextStyle(fontSize: 12)),
+                  label: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(actionLabel, style: const TextStyle(fontSize: 12), maxLines: 1),
+                  ),
                   style: TextButton.styleFrom(
                     visualDensity: VisualDensity.compact,
                   ),
@@ -457,7 +463,10 @@ class _NetlifyGeneratorScreenState extends State<NetlifyGeneratorScreen> {
                 }
               },
               icon: const Icon(Icons.copy_all, size: 18),
-              label: const Text('Copy All'),
+              label: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('Copy All', maxLines: 1),
+              ),
             ),
           ],
         ).animate().fadeIn(delay: 100.ms),
@@ -502,7 +511,10 @@ class _NetlifyGeneratorScreenState extends State<NetlifyGeneratorScreen> {
                       const SizedBox(height: 8),
                       FilledButton.tonal(
                         onPressed: controller.loadMore,
-                        child: const Text('Load More'),
+                        child: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Load More', maxLines: 1),
+                        ),
                       ),
                     ],
                   ),

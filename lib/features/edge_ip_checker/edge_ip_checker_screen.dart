@@ -130,12 +130,16 @@ class _EdgeIpCheckerScreenState extends State<EdgeIpCheckerScreen> {
                           ? Icons.play_arrow
                           : Icons.add,
                 ),
-                label: Text(
-                  controller.isScanning
-                      ? 'Stop'
-                      : controller.parsedIpCount > 0
-                          ? 'Scan ${controller.parsedIpCount} IPs'
-                          : 'Add IPs',
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    controller.isScanning
+                        ? 'Stop'
+                        : controller.parsedIpCount > 0
+                            ? 'Scan ${controller.parsedIpCount} IPs'
+                            : 'Add IPs',
+                    maxLines: 1,
+                  ),
                 ),
               ).animate().fadeIn(delay: 100.ms).scale(delay: 100.ms),
             ],
@@ -348,7 +352,10 @@ class _EdgeIpCheckerScreenState extends State<EdgeIpCheckerScreen> {
                       controller.updateConfig(testDomain: 'chatgpt.com');
                     },
                     icon: const Icon(Icons.cloud_outlined, size: 18),
-                    label: const Text('CF'),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('CF', maxLines: 1),
+                    ),
                   ),
                   FilledButton.tonalIcon(
                     onPressed: () {
@@ -357,7 +364,10 @@ class _EdgeIpCheckerScreenState extends State<EdgeIpCheckerScreen> {
                       controller.updateConfig(testDomain: 'vercel.com');
                     },
                     icon: const Icon(Icons.bolt, size: 18),
-                    label: const Text('Vercel'),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Vercel', maxLines: 1),
+                    ),
                   ),
                   FilledButton.tonalIcon(
                     onPressed: () {
@@ -366,7 +376,10 @@ class _EdgeIpCheckerScreenState extends State<EdgeIpCheckerScreen> {
                       controller.updateConfig(testDomain: 'fastly.com');
                     },
                     icon: const Icon(Icons.speed, size: 18),
-                    label: const Text('Fastly'),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Fastly', maxLines: 1),
+                    ),
                   ),
                   if (controller.parsedIpCount > 0)
                     IconButton.filledTonal(
@@ -516,7 +529,11 @@ class _EdgeIpCheckerScreenState extends State<EdgeIpCheckerScreen> {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Row(
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
               children: [
                 Text(
                   _currentFilter == _ResultFilter.all 
@@ -528,26 +545,32 @@ class _EdgeIpCheckerScreenState extends State<EdgeIpCheckerScreen> {
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
-                const Spacer(),
                 if (filteredIps.isNotEmpty)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       if (filteredIps.length > 10) ...[
                         TextButton.icon(
                           onPressed: () => _copyFilteredIps(context, filteredIps),
                           icon: const Icon(Icons.copy, size: 16),
-                          label: const Text('Copy Top 10'),
+                          label: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('Copy Top 10', maxLines: 1),
+                          ),
                           style: TextButton.styleFrom(
                             visualDensity: VisualDensity.compact,
                           ),
                         ),
-                        const SizedBox(width: 8),
                       ],
                       TextButton.icon(
                         onPressed: () => _copyFilteredIps(context, filteredIps, copyAll: true),
                         icon: const Icon(Icons.copy_all, size: 16),
-                        label: const Text('Copy All'),
+                        label: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Copy All', maxLines: 1),
+                        ),
                         style: TextButton.styleFrom(
                           visualDensity: VisualDensity.compact,
                         ),
@@ -573,11 +596,11 @@ class _EdgeIpCheckerScreenState extends State<EdgeIpCheckerScreen> {
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
             sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: 200,
                 mainAxisSpacing: 8,
                 crossAxisSpacing: 8,
-                childAspectRatio: 2.2,
+                childAspectRatio: (2.2 / MediaQuery.textScalerOf(context).scale(1.0)).clamp(1.6, 2.2),
               ),
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
@@ -618,23 +641,34 @@ class _EdgeIpCheckerScreenState extends State<EdgeIpCheckerScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
             children: [
-              Icon(Icons.emoji_events, color: colorScheme.primary, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Top Performers',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurface,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.emoji_events, color: colorScheme.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Top Performers',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                ],
               ),
-              const Spacer(),
               TextButton.icon(
                 onPressed: () => _copyTopIps(context, topThree),
                 icon: const Icon(Icons.copy, size: 14),
-                label: const Text('Copy'),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('Copy', maxLines: 1),
+                ),
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -1214,7 +1248,10 @@ class _IpInputDialogState extends State<_IpInputDialog> {
                           });
                         },
                         icon: const Icon(Icons.cloud_outlined, size: 18),
-                        label: const Text('CF'),
+                        label: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('CF', maxLines: 1),
+                        ),
                       ),
                       FilledButton.tonalIcon(
                         onPressed: () {
@@ -1226,7 +1263,10 @@ class _IpInputDialogState extends State<_IpInputDialog> {
                           });
                         },
                         icon: const Icon(Icons.bolt, size: 18),
-                        label: const Text('Vercel'),
+                        label: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Vercel', maxLines: 1),
+                        ),
                       ),
                       FilledButton.tonalIcon(
                         onPressed: () {
@@ -1238,7 +1278,10 @@ class _IpInputDialogState extends State<_IpInputDialog> {
                           });
                         },
                         icon: const Icon(Icons.speed, size: 18),
-                        label: const Text('Fastly'),
+                        label: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Fastly', maxLines: 1),
+                        ),
                       ),
                       IconButton.filledTonal(
                         onPressed: () {
@@ -1325,7 +1368,10 @@ class _IpInputDialogState extends State<_IpInputDialog> {
                         widget.controller.clearAll();
                         Navigator.pop(context);
                       },
-                      child: const Text('Clear All'),
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('Clear All', maxLines: 1),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1336,7 +1382,10 @@ class _IpInputDialogState extends State<_IpInputDialog> {
                         widget.controller.updateInput(_textController.text);
                         Navigator.pop(context);
                       },
-                      child: const Text('Update'),
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('Update', maxLines: 1),
+                      ),
                     ),
                   ),
                 ],

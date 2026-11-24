@@ -167,10 +167,14 @@ class _IpInfoScreenState extends State<IpInfoScreen> {
                       ? Icons.search_rounded
                       : Icons.public_rounded),
             ),
-            label: Text(
-              isRunning
-                  ? 'Checking...'
-                  : (hasManualInput ? 'Check entered IP' : 'Check my IP'),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                isRunning
+                    ? 'Checking...'
+                    : (hasManualInput ? 'Check entered IP' : 'Check my IP'),
+                maxLines: 1,
+              ),
             ),
           );
         },
@@ -455,11 +459,15 @@ class _IpInfoScreenState extends State<IpInfoScreen> {
                             height: 16,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text(
-                            'Check',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
+                        : const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'Check',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
                             ),
                           ),
                   ),
@@ -490,7 +498,11 @@ class _IpInfoScreenState extends State<IpInfoScreen> {
               ],
               if (controller.isManual) ...[
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 4,
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -519,7 +531,6 @@ class _IpInfoScreenState extends State<IpInfoScreen> {
                         ],
                       ),
                     ),
-                    const Spacer(),
                     TextButton.icon(
                       onPressed: controller.isRunning
                           ? null
@@ -528,8 +539,14 @@ class _IpInfoScreenState extends State<IpInfoScreen> {
                               controller.runIpInfoSuite();
                             },
                       icon: const Icon(Icons.my_location_rounded, size: 14),
-                      label: const Text('Auto-detect my IP',
-                          style: TextStyle(fontSize: 12)),
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'Auto-detect my IP',
+                          style: TextStyle(fontSize: 12),
+                          maxLines: 1,
+                        ),
+                      ),
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 2),
@@ -649,7 +666,10 @@ class _IpInfoScreenState extends State<IpInfoScreen> {
                 visualDensity: VisualDensity.compact,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: const Text('Inspect', style: TextStyle(fontSize: 11)),
+              child: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('Inspect', style: TextStyle(fontSize: 11), maxLines: 1),
+              ),
             ),
           ],
         ],
@@ -889,7 +909,10 @@ class _IpInfoScreenState extends State<IpInfoScreen> {
                   visualDensity: VisualDensity.compact,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                child: const Text('Inspect', style: TextStyle(fontSize: 11)),
+                child: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('Inspect', style: TextStyle(fontSize: 11), maxLines: 1),
+              ),
               ),
             ],
           ],
@@ -2127,9 +2150,13 @@ class _IpInfoScreenState extends State<IpInfoScreen> {
                 ),
               ),
               icon: const Icon(Icons.copy_rounded, size: 18),
-              label: const Text(
-                'Copy All Information',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+              label: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  'Copy All Information',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                ),
               ),
             ),
           ],

@@ -221,13 +221,15 @@ class _ChainScreenState extends State<ChainScreen> {
                                   : colorScheme.secondary,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          label,
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
+                        Expanded(
+                          child: Text(
+                            label,
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const Spacer(),
                         if (!isEntry && !isExit && hopLinks.length > 2)
                           IconButton(
                             icon: const Icon(Icons.delete_outline, size: 18),
@@ -276,7 +278,10 @@ class _ChainScreenState extends State<ChainScreen> {
             OutlinedButton.icon(
               onPressed: () => controller.addHopLink(),
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add Intermediate Hop'),
+              label: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('Add Intermediate Hop', maxLines: 1),
+              ),
             ),
           ],
         ),
@@ -363,9 +368,15 @@ class _ChainScreenState extends State<ChainScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.bolt),
-            label: Text(controller.isGenerating ? 'Generating...' : 'Generate Xray Profile'),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                controller.isGenerating ? 'Generating...' : 'Generate Xray Profile',
+                maxLines: 1,
+              ),
+            ),
             style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -379,9 +390,12 @@ class _ChainScreenState extends State<ChainScreen> {
             controller.clear();
           },
           icon: const Icon(Icons.clear_all),
-          label: const Text('Clear'),
+          label: const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text('Clear', maxLines: 1),
+          ),
           style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -433,11 +447,13 @@ class _ChainScreenState extends State<ChainScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Generated Xray Profile JSON',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.primary,
+                Expanded(
+                  child: Text(
+                    'Generated Xray Profile JSON',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary,
+                    ),
                   ),
                 ),
                 FilledButton.tonalIcon(
@@ -452,7 +468,10 @@ class _ChainScreenState extends State<ChainScreen> {
                     );
                   },
                   icon: const Icon(Icons.copy, size: 18),
-                  label: const Text('Copy'),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('Copy', maxLines: 1),
+                  ),
                 ),
               ],
             ),

@@ -520,7 +520,13 @@ class InternetDiagnosticsScreen extends StatelessWidget {
             icon: Icon(
               isRunning ? Icons.hourglass_empty : Icons.network_ping_rounded,
             ),
-            label: Text(isRunning ? 'Diagnosing...' : 'Start Diagnostic'),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                isRunning ? 'Diagnosing...' : 'Start Diagnostic',
+                maxLines: 1,
+              ),
+            ),
           ).animate().fadeIn(delay: 200.ms).scale(delay: 200.ms);
         },
       ),
@@ -833,11 +839,15 @@ class InternetDiagnosticsScreen extends StatelessWidget {
                         ),
                       ),
                       icon: const Icon(Icons.copy_rounded, size: 18),
-                      label: const Text(
-                        'Copy All Information',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
+                      label: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          'Copy All Information',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
                         ),
                       ),
                     ),
@@ -1137,7 +1147,9 @@ class InternetDiagnosticsScreen extends StatelessWidget {
                     final double maxWidth = constraints.maxWidth;
                     final int crossAxisCount = (maxWidth / 220).floor().clamp(2, 6);
                     final double itemWidth = (maxWidth - (crossAxisCount - 1) * 10) / crossAxisCount;
-                    final double childAspectRatio = itemWidth / 85;
+                    final textScaler = MediaQuery.textScalerOf(context);
+                    final double cardHeight = textScaler.scale(85).clamp(85.0, 140.0);
+                    final double childAspectRatio = itemWidth / cardHeight;
 
                     return GridView.builder(
                       physics: const NeverScrollableScrollPhysics(),
@@ -1714,7 +1726,9 @@ class InternetDiagnosticsScreen extends StatelessWidget {
                     final double maxWidth = constraints.maxWidth;
                     final int crossAxisCount = (maxWidth / 220).floor().clamp(2, 6);
                     final double itemWidth = (maxWidth - (crossAxisCount - 1) * 10) / crossAxisCount;
-                    final double childAspectRatio = itemWidth / 85;
+                    final textScaler = MediaQuery.textScalerOf(context);
+                    final double cardHeight = textScaler.scale(85).clamp(85.0, 140.0);
+                    final double childAspectRatio = itemWidth / cardHeight;
 
                     return GridView.builder(
                       physics: const NeverScrollableScrollPhysics(),
@@ -1902,7 +1916,9 @@ class InternetDiagnosticsScreen extends StatelessWidget {
                   final double maxWidth = constraints.maxWidth;
                   final int crossAxisCount = (maxWidth / 220).floor().clamp(2, 6);
                   final double itemWidth = (maxWidth - (crossAxisCount - 1) * 10) / crossAxisCount;
-                  final double childAspectRatio = itemWidth / 85;
+                  final textScaler = MediaQuery.textScalerOf(context);
+                  final double cardHeight = textScaler.scale(85).clamp(85.0, 140.0);
+                  final double childAspectRatio = itemWidth / cardHeight;
 
                   return GridView.builder(
                     physics: const NeverScrollableScrollPhysics(),
@@ -2080,7 +2096,9 @@ class InternetDiagnosticsScreen extends StatelessWidget {
                   final double maxWidth = constraints.maxWidth;
                   final int crossAxisCount = (maxWidth / 220).floor().clamp(2, 6);
                   final double itemWidth = (maxWidth - (crossAxisCount - 1) * 10) / crossAxisCount;
-                  final double childAspectRatio = itemWidth / 85;
+                  final textScaler = MediaQuery.textScalerOf(context);
+                  final double cardHeight = textScaler.scale(85).clamp(85.0, 140.0);
+                  final double childAspectRatio = itemWidth / cardHeight;
 
                   return GridView.builder(
                     physics: const NeverScrollableScrollPhysics(),
@@ -2254,7 +2272,9 @@ class InternetDiagnosticsScreen extends StatelessWidget {
                   final double maxWidth = constraints.maxWidth;
                   final int crossAxisCount = (maxWidth / 220).floor().clamp(2, 6);
                   final double itemWidth = (maxWidth - (crossAxisCount - 1) * 10) / crossAxisCount;
-                  final double childAspectRatio = itemWidth / 85;
+                  final textScaler = MediaQuery.textScalerOf(context);
+                  final double cardHeight = textScaler.scale(85).clamp(85.0, 140.0);
+                  final double childAspectRatio = itemWidth / cardHeight;
 
                   return GridView.builder(
                     physics: const NeverScrollableScrollPhysics(),
@@ -2474,7 +2494,9 @@ class InternetDiagnosticsScreen extends StatelessWidget {
                     final double maxWidth = constraints.maxWidth;
                     final int crossAxisCount = (maxWidth / 220).floor().clamp(2, 6);
                     final double itemWidth = (maxWidth - (crossAxisCount - 1) * 10) / crossAxisCount;
-                    final double childAspectRatio = itemWidth / 85;
+                    final textScaler = MediaQuery.textScalerOf(context);
+                    final double cardHeight = textScaler.scale(85).clamp(85.0, 140.0);
+                    final double childAspectRatio = itemWidth / cardHeight;
 
                     return GridView.builder(
                       physics: const NeverScrollableScrollPhysics(),
@@ -2933,13 +2955,16 @@ class _ProtocolSummaryGridCard extends StatelessWidget {
               const SizedBox(height: 20),
               Row(
                 children: [
-                  Text(
-                    summary.protocolName,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                  Expanded(
+                    child: Text(
+                      summary.protocolName,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(

@@ -129,12 +129,16 @@ class _AkamaiScanScreenState extends State<AkamaiScanScreen> {
                           ? Icons.play_arrow
                           : Icons.add,
                 ),
-                label: Text(
-                  controller.isScanning
-                      ? 'Stop'
-                      : controller.parsedIpCount > 0
-                          ? 'Scan ${controller.parsedIpCount} IPs'
-                          : 'Add IPs',
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    controller.isScanning
+                        ? 'Stop'
+                        : controller.parsedIpCount > 0
+                            ? 'Scan ${controller.parsedIpCount} IPs'
+                            : 'Add IPs',
+                    maxLines: 1,
+                  ),
                 ),
               ).animate().fadeIn(delay: 100.ms).scale(delay: 100.ms),
             ],
@@ -308,47 +312,57 @@ class _AkamaiScanScreenState extends State<AkamaiScanScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Enter IP addresses or CIDR ranges',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onSurface,
-                      ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Enter IP addresses or CIDR ranges',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'One IP or range per line',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'One IP or range per line',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: colorScheme.onSurfaceVariant,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              FilledButton.tonalIcon(
-                onPressed: () {
-                  _inputController.text = akamaiIpRanges;
-                  controller.updateInput(akamaiIpRanges);
-                },
-                icon: const Icon(Icons.cloud_outlined, size: 18),
-                label: const Text('Load Akamai IPs'),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: () {
+                      _inputController.text = akamaiIpRanges;
+                      controller.updateInput(akamaiIpRanges);
+                    },
+                    icon: const Icon(Icons.cloud_outlined, size: 18),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Load Akamai IPs', maxLines: 1),
+                    ),
+                  ),
+                  if (controller.parsedIpCount > 0)
+                    IconButton.filledTonal(
+                      onPressed: () => _shuffleInputLines(_inputController, controller),
+                      icon: const Icon(Icons.shuffle, size: 20),
+                      tooltip: 'Shuffle ranges',
+                    ),
+                ],
               ),
-              if (controller.parsedIpCount > 0) ...[  
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  onPressed: () => _shuffleInputLines(_inputController, controller),
-                  icon: const Icon(Icons.shuffle, size: 20),
-                  tooltip: 'Shuffle ranges',
-                ),
-              ],
             ],
           ),
           const SizedBox(height: 16),
@@ -489,7 +503,11 @@ class _AkamaiScanScreenState extends State<AkamaiScanScreen> {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Row(
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
               children: [
                 Text(
                   _currentFilter == _ResultFilter.all
@@ -501,26 +519,32 @@ class _AkamaiScanScreenState extends State<AkamaiScanScreen> {
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
-                const Spacer(),
                 if (filteredIps.isNotEmpty)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       if (filteredIps.length > 10) ...[
                         TextButton.icon(
                           onPressed: () => _copyFilteredIps(context, filteredIps),
                           icon: const Icon(Icons.copy, size: 16),
-                          label: const Text('Copy Top 10'),
+                          label: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('Copy Top 10', maxLines: 1),
+                          ),
                           style: TextButton.styleFrom(
                             visualDensity: VisualDensity.compact,
                           ),
                         ),
-                        const SizedBox(width: 8),
                       ],
                       TextButton.icon(
                         onPressed: () => _copyFilteredIps(context, filteredIps, copyAll: true),
                         icon: const Icon(Icons.copy_all, size: 16),
-                        label: const Text('Copy All'),
+                        label: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Copy All', maxLines: 1),
+                        ),
                         style: TextButton.styleFrom(
                           visualDensity: VisualDensity.compact,
                         ),
@@ -546,11 +570,11 @@ class _AkamaiScanScreenState extends State<AkamaiScanScreen> {
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
             sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: 200,
                 mainAxisSpacing: 8,
                 crossAxisSpacing: 8,
-                childAspectRatio: 2.2,
+                childAspectRatio: (2.2 / MediaQuery.textScalerOf(context).scale(1.0)).clamp(1.6, 2.2),
               ),
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
@@ -591,23 +615,34 @@ class _AkamaiScanScreenState extends State<AkamaiScanScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
             children: [
-              Icon(Icons.emoji_events, color: colorScheme.primary, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Top Performers',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurface,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.emoji_events, color: colorScheme.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Top Performers',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                ],
               ),
-              const Spacer(),
               TextButton.icon(
                 onPressed: () => _copyTopIps(context, topThree),
                 icon: const Icon(Icons.copy, size: 14),
-                label: const Text('Copy'),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('Copy', maxLines: 1),
+                ),
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -1050,7 +1085,10 @@ class _SettingsDialogState extends State<_SettingsDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text('Cancel', maxLines: 1),
+          ),
         ),
         FilledButton(
           onPressed: () {
@@ -1061,7 +1099,10 @@ class _SettingsDialogState extends State<_SettingsDialog> {
             );
             Navigator.pop(context, newConfig);
           },
-          child: const Text('Save'),
+          child: const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text('Save', maxLines: 1),
+          ),
         ),
       ],
     );
@@ -1123,28 +1164,37 @@ class _AkamaiInputDialogState extends State<_AkamaiInputDialog> {
               const SizedBox(height: 16),
 
               // Title row with load button
-              Row(
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  Expanded(
-                    child: Text(
-                      'Edit IP Addresses',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
+                  Text(
+                    'Edit IP Addresses',
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  FilledButton.tonalIcon(
-                    onPressed: () {
-                      _textController.text = akamaiIpRanges;
-                      _dialogDebounceTimer?.cancel();
-                      setState(() {
-                        _dialogParsedIpCount = AkamaiIpScanner.parseIpInput(akamaiIpRanges).length;
-                      });
-                    },
-                    icon: const Icon(Icons.cloud_outlined, size: 18),
-                    label: const Text('Load Akamai IPs'),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    onPressed: () {
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      FilledButton.tonalIcon(
+                        onPressed: () {
+                          _textController.text = akamaiIpRanges;
+                          _dialogDebounceTimer?.cancel();
+                          setState(() {
+                            _dialogParsedIpCount = AkamaiIpScanner.parseIpInput(akamaiIpRanges).length;
+                          });
+                        },
+                        icon: const Icon(Icons.cloud_outlined, size: 18),
+                        label: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Load Akamai IPs', maxLines: 1),
+                        ),
+                      ),
+                      IconButton.filledTonal(
+                        onPressed: () {
                       final lines = _textController.text.split('\n').where((l) => l.trim().isNotEmpty).toList();
                       if (lines.length <= 1) return;
                       lines.shuffle();
@@ -1160,7 +1210,9 @@ class _AkamaiInputDialogState extends State<_AkamaiInputDialog> {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+            ],
+          ),
+          const SizedBox(height: 16),
 
               // Input field
               Expanded(
@@ -1226,7 +1278,10 @@ class _AkamaiInputDialogState extends State<_AkamaiInputDialog> {
                         widget.controller.clearAll();
                         Navigator.pop(context);
                       },
-                      child: const Text('Clear All'),
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('Clear All', maxLines: 1),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1237,7 +1292,10 @@ class _AkamaiInputDialogState extends State<_AkamaiInputDialog> {
                         widget.controller.updateInput(_textController.text);
                         Navigator.pop(context);
                       },
-                      child: const Text('Update'),
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('Update', maxLines: 1),
+                      ),
                     ),
                   ),
                 ],

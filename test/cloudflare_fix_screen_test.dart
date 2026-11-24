@@ -24,7 +24,6 @@ void main() {
       ),
     );
 
-    final appBar = tester.widget<AppBar>(find.byType(AppBar));
     await tester.pump(const Duration(seconds: 2));
 
     expect(find.descendant(of: find.byType(AppBar), matching: find.text('Patt\'s Cloudflare Fix')), findsOneWidget);

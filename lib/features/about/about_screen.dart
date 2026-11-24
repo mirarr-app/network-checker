@@ -106,7 +106,8 @@ class _AboutScreenState extends State<AboutScreen> {
             // URL with launch and copy buttons
             Builder(
               builder: (context) {
-                final isNarrow = MediaQuery.sizeOf(context).width < 500;
+                final textScaler = MediaQuery.textScalerOf(context);
+                final isNarrow = (MediaQuery.sizeOf(context).width / textScaler.scale(1.0)) < 550;
                 final urlFontSize = isNarrow ? 12.0 : 14.0;
                 final padding = isNarrow ? 12.0 : 20.0;
                 return Container(
@@ -156,7 +157,10 @@ class _AboutScreenState extends State<AboutScreen> {
                                 FilledButton.tonalIcon(
                                   onPressed: _launchUrl,
                                   icon: const Icon(Icons.open_in_new, size: 16),
-                                  label: const Text('Open'),
+                                  label: const FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text('Open', maxLines: 1),
+                                  ),
                                   style: FilledButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   ),
@@ -168,7 +172,10 @@ class _AboutScreenState extends State<AboutScreen> {
                                     _copied ? Icons.check : Icons.copy,
                                     size: 16,
                                   ),
-                                  label: Text(_copied ? 'Copied!' : 'Copy'),
+                                  label: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(_copied ? 'Copied!' : 'Copy', maxLines: 1),
+                                  ),
                                   style: FilledButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   ),
@@ -205,7 +212,10 @@ class _AboutScreenState extends State<AboutScreen> {
                             FilledButton.tonalIcon(
                               onPressed: _launchUrl,
                               icon: const Icon(Icons.open_in_new, size: 18),
-                              label: const Text('Open'),
+                              label: const FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text('Open', maxLines: 1),
+                              ),
                               style: FilledButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                               ),
@@ -217,7 +227,10 @@ class _AboutScreenState extends State<AboutScreen> {
                                 _copied ? Icons.check : Icons.copy,
                                 size: 18,
                               ),
-                              label: Text(_copied ? 'Copied!' : 'Copy'),
+                              label: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(_copied ? 'Copied!' : 'Copy', maxLines: 1),
+                              ),
                               style: FilledButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                               ),

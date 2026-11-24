@@ -104,7 +104,10 @@ class _LoadBalancerScreenState extends State<LoadBalancerScreen> {
               Navigator.of(dialogCtx).pop();
             },
             icon: const Icon(Icons.check, size: 18),
-            label: const Text('Import'),
+            label: const FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text('Import', maxLines: 1),
+            ),
           ),
         ],
       ),
@@ -231,10 +234,14 @@ class _LoadBalancerScreenState extends State<LoadBalancerScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       'Proxy Nodes',
@@ -264,7 +271,10 @@ class _LoadBalancerScreenState extends State<LoadBalancerScreen> {
                 FilledButton.tonalIcon(
                   onPressed: () => _showBulkImportDialog(context, controller),
                   icon: const Icon(Icons.playlist_add_rounded, size: 18),
-                  label: const Text('Bulk Import'),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('Bulk Import', maxLines: 1),
+                  ),
                 ),
               ],
             ),
@@ -287,13 +297,15 @@ class _LoadBalancerScreenState extends State<LoadBalancerScreen> {
                           color: colorScheme.secondary,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          'Node #${index + 1}',
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
+                        Expanded(
+                          child: Text(
+                            'Node #${index + 1}',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const Spacer(),
                         if (configs.length > 1)
                           IconButton(
                             icon: const Icon(Icons.delete_outline, size: 18),
@@ -343,7 +355,10 @@ class _LoadBalancerScreenState extends State<LoadBalancerScreen> {
             OutlinedButton.icon(
               onPressed: () => controller.addInputConfig(),
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add Node Slot'),
+              label: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('Add Node Slot', maxLines: 1),
+              ),
             ),
           ],
         ),
@@ -377,6 +392,7 @@ class _LoadBalancerScreenState extends State<LoadBalancerScreen> {
 
             // Balancer Strategy Dropdown
             DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: controller.strategyType,
               decoration: InputDecoration(
                 labelText: 'Balancer Strategy',
@@ -387,15 +403,24 @@ class _LoadBalancerScreenState extends State<LoadBalancerScreen> {
               items: const [
                 DropdownMenuItem(
                   value: 'leastPing',
-                  child: Text('leastPing (Lowest Latency - Recommended)'),
+                  child: Text(
+                    'leastPing (Lowest Latency - Recommended)',
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 DropdownMenuItem(
                   value: 'roundRobin',
-                  child: Text('roundRobin (Sequential Cycling)'),
+                  child: Text(
+                    'roundRobin (Sequential Cycling)',
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 DropdownMenuItem(
                   value: 'random',
-                  child: Text('random (Random Node)'),
+                  child: Text(
+                    'random (Random Node)',
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
               onChanged: (val) {
@@ -419,24 +444,24 @@ class _LoadBalancerScreenState extends State<LoadBalancerScreen> {
             const SizedBox(height: 16),
 
             // Probe Interval
-            Row(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _probeIntervalController,
-                    decoration: InputDecoration(
-                      labelText: 'Probe Interval',
-                      hintText: '3m, 1m, 30s',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                TextFormField(
+                  controller: _probeIntervalController,
+                  decoration: InputDecoration(
+                    labelText: 'Probe Interval',
+                    hintText: '3m, 1m, 30s',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    onChanged: (val) => controller.setProbeInterval(val),
                   ),
+                  onChanged: (val) => controller.setProbeInterval(val),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(height: 8),
                 Wrap(
-                  spacing: 4,
+                  spacing: 6,
+                  runSpacing: 4,
                   children: ['1m', '3m', '5m'].map((interval) {
                     return ActionChip(
                       label: Text(interval, style: const TextStyle(fontSize: 12)),
@@ -566,9 +591,15 @@ class _LoadBalancerScreenState extends State<LoadBalancerScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.bolt),
-            label: Text(controller.isGenerating ? 'Generating...' : 'Generate Balancer Config'),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                controller.isGenerating ? 'Generating...' : 'Generate Balancer Config',
+                maxLines: 1,
+              ),
+            ),
             style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -587,9 +618,12 @@ class _LoadBalancerScreenState extends State<LoadBalancerScreen> {
             _httpPortController.text = controller.httpPort?.toString() ?? '';
           },
           icon: const Icon(Icons.clear_all),
-          label: const Text('Clear'),
+          label: const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text('Clear', maxLines: 1),
+          ),
           style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -641,11 +675,13 @@ class _LoadBalancerScreenState extends State<LoadBalancerScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Generated Balancer JSON',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.primary,
+                Expanded(
+                  child: Text(
+                    'Generated Balancer JSON',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary,
+                    ),
                   ),
                 ),
                 FilledButton.tonalIcon(
@@ -660,7 +696,10 @@ class _LoadBalancerScreenState extends State<LoadBalancerScreen> {
                     );
                   },
                   icon: const Icon(Icons.copy, size: 18),
-                  label: const Text('Copy'),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('Copy', maxLines: 1),
+                  ),
                 ),
               ],
             ),

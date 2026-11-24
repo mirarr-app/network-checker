@@ -113,12 +113,16 @@ class _SniSpoofCheckScreenState extends State<SniSpoofCheckScreen> {
                           ? Icons.play_arrow
                           : Icons.add,
                 ),
-                label: Text(
-                  controller.isScanning
-                      ? 'Stop'
-                      : controller.parsedTargetCount > 0
-                          ? 'Scan ${controller.parsedTargetCount} targets'
-                          : 'Add targets',
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    controller.isScanning
+                        ? 'Stop'
+                        : controller.parsedTargetCount > 0
+                            ? 'Scan ${controller.parsedTargetCount} targets'
+                            : 'Add targets',
+                    maxLines: 1,
+                  ),
                 ),
               ).animate().fadeIn(delay: 100.ms).scale(delay: 100.ms),
             ],
@@ -153,24 +157,29 @@ class _SniSpoofCheckScreenState extends State<SniSpoofCheckScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
             children: [
-              if (controller.userPublicIp != null) ...[
-                Icon(Icons.public, size: 14, color: cs.primary),
-                const SizedBox(width: 4),
-                Text(
-                  'Your IP: ${controller.userPublicIp}',
-                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, fontFamily: 'monospace'),
+              if (controller.userPublicIp != null)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.public, size: 14, color: cs.primary),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Your IP: ${controller.userPublicIp}',
+                      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, fontFamily: 'monospace'),
+                    ),
+                  ],
                 ),
-                const Spacer(),
-              ],
               if (controller.statusMessage.isNotEmpty)
-                Flexible(
-                  child: Text(
-                    controller.statusMessage,
-                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                Text(
+                  controller.statusMessage,
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                  overflow: TextOverflow.ellipsis,
                 ),
             ],
           ),
@@ -210,8 +219,8 @@ class _SniSpoofCheckScreenState extends State<SniSpoofCheckScreen> {
 
   Widget _buildInputSection(BuildContext context, SniSpoofCheckController controller) {
     final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.all(16),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -260,7 +269,10 @@ class _SniSpoofCheckScreenState extends State<SniSpoofCheckScreen> {
                   controller.updateTargetsText(kDefaultSniTargets);
                 },
                 icon: const Icon(Icons.list_alt, size: 18),
-                label: const Text('Defaults'),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('Defaults', maxLines: 1),
+                ),
               ),
             ],
           ),
@@ -291,7 +303,10 @@ class _SniSpoofCheckScreenState extends State<SniSpoofCheckScreen> {
                   controller.updatePortsText(allPorts);
                 },
                 icon: const Icon(Icons.select_all, size: 18),
-                label: const Text('All Ports'),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('All Ports', maxLines: 1),
+                ),
               ),
             ],
           ),
@@ -319,7 +334,8 @@ class _SniSpoofCheckScreenState extends State<SniSpoofCheckScreen> {
           const SizedBox(height: 12),
 
           // Targets input
-          Expanded(
+          SizedBox(
+            height: 180,
             child: TextField(
               controller: _targetsController,
               maxLines: null,
@@ -487,21 +503,53 @@ class _SniSpoofCheckScreenState extends State<SniSpoofCheckScreen> {
               const SizedBox(height: 16),
               Row(children: [
                 Expanded(child: Text('Edit Targets', style: Theme.of(context).textTheme.titleLarge)),
-                FilledButton.tonalIcon(onPressed: () { textCtrl.text = kDefaultSniTargets; }, icon: const Icon(Icons.list_alt, size: 18), label: const Text('Defaults')),
+                FilledButton.tonalIcon(
+                  onPressed: () { textCtrl.text = kDefaultSniTargets; },
+                  icon: const Icon(Icons.list_alt, size: 18),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('Defaults', maxLines: 1),
+                  ),
+                ),
               ]),
               const SizedBox(height: 12),
               Row(children: [
                 Expanded(child: TextField(controller: portsCtrl, decoration: InputDecoration(labelText: 'Ports', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), isDense: true), style: const TextStyle(fontFamily: 'monospace', fontSize: 14))),
                 const SizedBox(width: 8),
-                FilledButton.tonalIcon(onPressed: () { portsCtrl.text = kAllSniPorts.join(','); }, icon: const Icon(Icons.select_all, size: 18), label: const Text('All')),
+                FilledButton.tonalIcon(
+                  onPressed: () { portsCtrl.text = kAllSniPorts.join(','); },
+                  icon: const Icon(Icons.select_all, size: 18),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('All', maxLines: 1),
+                  ),
+                ),
               ]),
               const SizedBox(height: 12),
               Expanded(child: TextField(controller: textCtrl, maxLines: null, expands: true, textAlignVertical: TextAlignVertical.top, decoration: InputDecoration(hintText: 'One domain or IP per line...', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))), style: const TextStyle(fontFamily: 'monospace', fontSize: 14))),
               const SizedBox(height: 16),
               Row(children: [
-                Expanded(child: OutlinedButton(onPressed: () { controller.clearAll(); Navigator.pop(context); }, child: const Text('Clear All'))),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () { controller.clearAll(); Navigator.pop(context); },
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Clear All', maxLines: 1),
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 12),
-                Expanded(flex: 2, child: FilledButton.icon(onPressed: () { controller.updateTargetsText(textCtrl.text); controller.updatePortsText(portsCtrl.text); Navigator.pop(context); }, icon: const Icon(Icons.check), label: const Text('Apply'))),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton.icon(
+                    onPressed: () { controller.updateTargetsText(textCtrl.text); controller.updatePortsText(portsCtrl.text); Navigator.pop(context); },
+                    icon: const Icon(Icons.check),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Apply', maxLines: 1),
+                    ),
+                  ),
+                ),
               ]),
             ],
           ),
@@ -536,8 +584,28 @@ class _SniSpoofCheckScreenState extends State<SniSpoofCheckScreen> {
           ]),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(onPressed: () { controller.updateConfig(timeout: int.tryParse(timeoutCtrl.text), retries: int.tryParse(retriesCtrl.text), concurrency: int.tryParse(concurrencyCtrl.text), manualIp: manualIpCtrl.text.isEmpty ? null : manualIpCtrl.text); Navigator.pop(context); }, child: const Text('Apply')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text('Cancel', maxLines: 1),
+            ),
+          ),
+          FilledButton(
+            onPressed: () {
+              controller.updateConfig(
+                timeout: int.tryParse(timeoutCtrl.text),
+                retries: int.tryParse(retriesCtrl.text),
+                concurrency: int.tryParse(concurrencyCtrl.text),
+                manualIp: manualIpCtrl.text.isEmpty ? null : manualIpCtrl.text,
+              );
+              Navigator.pop(context);
+            },
+            child: const FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text('Apply', maxLines: 1),
+            ),
+          ),
         ],
       ),
     );

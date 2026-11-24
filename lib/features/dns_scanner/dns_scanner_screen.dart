@@ -123,7 +123,10 @@ class DnsScannerScreen extends StatelessWidget {
                     ? controller.stopScanning
                     : controller.scanAll,
                 icon: Icon(controller.isScanning ? Icons.stop : Icons.play_arrow),
-                label: Text(controller.isScanning ? 'Stop' : 'Scan All'),
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(controller.isScanning ? 'Stop' : 'Scan All', maxLines: 1),
+                ),
               ).animate().fadeIn(delay: 100.ms).scale(delay: 100.ms),
             ],
           );
@@ -389,7 +392,10 @@ class DnsScannerScreen extends StatelessWidget {
                           Navigator.pop(context);
                         },
                         icon: const Icon(Icons.speed),
-                        label: const Text('Test Latency'),
+                        label: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Test Latency', maxLines: 1),
+                        ),
                       ),
                     ),
                   ],
@@ -528,7 +534,10 @@ class DnsScannerScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              child: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('Cancel', maxLines: 1),
+              ),
             ),
             FilledButton(
               onPressed: () {
@@ -537,7 +546,10 @@ class DnsScannerScreen extends StatelessWidget {
                   Navigator.of(context).pop();
                 }
               },
-              child: const Text('Add'),
+              child: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('Add', maxLines: 1),
+              ),
             ),
           ],
         );

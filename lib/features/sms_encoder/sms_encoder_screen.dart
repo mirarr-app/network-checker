@@ -141,15 +141,16 @@ class _SmsEncoderScreenState extends State<SmsEncoderScreen> {
               const SizedBox(height: 16),
               Row(
                 children: [
-                  Text(
-                    'Encoded Result:',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: colorScheme.onSurfaceVariant,
+                  Expanded(
+                    child: Text(
+                      'Encoded Result:',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
-                  const Spacer(),
                   FilledButton.tonalIcon(
                     onPressed: () async {
                       await controller.copyEncodedToClipboard();
@@ -164,7 +165,10 @@ class _SmsEncoderScreenState extends State<SmsEncoderScreen> {
                       }
                     },
                     icon: const Icon(Icons.copy, size: 16),
-                    label: const Text('Copy'),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Copy', maxLines: 1),
+                    ),
                   ),
                 ],
               ),
@@ -257,15 +261,16 @@ class _SmsEncoderScreenState extends State<SmsEncoderScreen> {
               const SizedBox(height: 16),
               Row(
                 children: [
-                  Text(
-                    'Decoded Result:',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: colorScheme.onSurfaceVariant,
+                  Expanded(
+                    child: Text(
+                      'Decoded Result:',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
-                  const Spacer(),
                   FilledButton.tonalIcon(
                     onPressed: () async {
                       await controller.copyDecodedToClipboard();
@@ -280,7 +285,10 @@ class _SmsEncoderScreenState extends State<SmsEncoderScreen> {
                       }
                     },
                     icon: const Icon(Icons.copy, size: 16),
-                    label: const Text('Copy'),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Copy', maxLines: 1),
+                    ),
                   ),
                 ],
               ),

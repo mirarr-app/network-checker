@@ -149,7 +149,10 @@ class _DnsHunterScreenState extends State<DnsHunterScreen> {
             FilledButton.icon(
               onPressed: controller.loadRanges,
               icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              label: const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text('Retry', maxLines: 1),
+              ),
             ),
           ],
         ),
@@ -162,22 +165,18 @@ class _DnsHunterScreenState extends State<DnsHunterScreen> {
     
     return Column(
       children: [
-        // Target selection
-        _buildTargetSelector(controller, colorScheme),
-        
-        // Custom domain input (if custom target)
-        if (controller.target == DnsHunterTarget.custom)
-          _buildCustomDomainInput(controller, colorScheme),
-        
-        // Range selection header
-        _buildRangeSelectionHeader(controller, colorScheme),
-        
-        // Range list
         Expanded(
-          child: _buildRangeList(controller, colorScheme),
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              _buildTargetSelector(controller, colorScheme),
+              if (controller.target == DnsHunterTarget.custom)
+                _buildCustomDomainInput(controller, colorScheme),
+              _buildRangeSelectionHeader(controller, colorScheme),
+              _buildRangeList(controller, colorScheme),
+            ],
+          ),
         ),
-        
-        // Start button
         _buildStartButton(controller, colorScheme),
       ],
     );
@@ -291,10 +290,14 @@ class _DnsHunterScreenState extends State<DnsHunterScreen> {
             onPressed: controller.selectedRanges.length == controller.availableRanges.length
                 ? controller.clearRangeSelection
                 : controller.selectAllRanges,
-            child: Text(
-              controller.selectedRanges.length == controller.availableRanges.length
-                  ? 'Deselect All'
-                  : 'Select All',
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                controller.selectedRanges.length == controller.availableRanges.length
+                    ? 'Deselect All'
+                    : 'Select All',
+                maxLines: 1,
+              ),
             ),
           ),
         ],
@@ -310,7 +313,9 @@ class _DnsHunterScreenState extends State<DnsHunterScreen> {
     }
     
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 100),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(bottom: 24),
       itemCount: grouped.length,
       itemBuilder: (context, index) {
         final provider = grouped.keys.elementAt(index);
@@ -412,7 +417,10 @@ class _DnsHunterScreenState extends State<DnsHunterScreen> {
                     ? controller.startScan
                     : null,
                 icon: const Icon(Icons.radar),
-                label: const Text('Start Hunting'),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('Start Hunting', maxLines: 1),
+                ),
               ),
             ),
           ],
@@ -540,7 +548,10 @@ class _DnsHunterScreenState extends State<DnsHunterScreen> {
               child: FilledButton.tonalIcon(
                 onPressed: controller.stopScan,
                 icon: const Icon(Icons.stop),
-                label: const Text('Stop'),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('Stop', maxLines: 1),
+                ),
               ),
             ),
           ),
@@ -644,7 +655,10 @@ class _DnsHunterScreenState extends State<DnsHunterScreen> {
                                   );
                                 },
                                 icon: const Icon(Icons.copy),
-                                label: const Text('Copy Top 10 IPs'),
+                                label: const FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text('Copy Top 10 IPs', maxLines: 1),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -664,7 +678,10 @@ class _DnsHunterScreenState extends State<DnsHunterScreen> {
                                   );
                                 },
                                 icon: const Icon(Icons.copy_all),
-                                label: const Text('Copy All IPs'),
+                                label: const FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text('Copy All IPs', maxLines: 1),
+                                ),
                               ),
                             ),
                           ],
@@ -687,7 +704,10 @@ class _DnsHunterScreenState extends State<DnsHunterScreen> {
                               );
                             },
                             icon: const Icon(Icons.copy_all),
-                            label: const Text('Copy All IPs'),
+                            label: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text('Copy All IPs', maxLines: 1),
+                            ),
                           ),
                         ),
                       ],

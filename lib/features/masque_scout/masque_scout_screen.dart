@@ -125,12 +125,16 @@ class _MasqueScoutScreenState extends State<MasqueScoutScreen> {
                           ? Icons.play_arrow
                           : Icons.add,
                 ),
-                label: Text(
-                  controller.isScanning
-                      ? 'Stop Scan'
-                      : controller.parsedCount > 0
-                          ? 'Scan ${controller.parsedCount} Endpoints'
-                          : 'Add Endpoints',
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    controller.isScanning
+                        ? 'Stop Scan'
+                        : controller.parsedCount > 0
+                            ? 'Scan ${controller.parsedCount} Endpoints'
+                            : 'Add Endpoints',
+                    maxLines: 1,
+                  ),
                 ),
               ).animate().fadeIn(delay: 100.ms).scale(delay: 100.ms),
             ],
@@ -156,12 +160,18 @@ class _MasqueScoutScreenState extends State<MasqueScoutScreen> {
               segments: const [
                 ButtonSegment<MasqueProtocol>(
                   value: MasqueProtocol.h3,
-                  label: Text('MASQUE H3 (QUIC)'),
+                  label: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('MASQUE H3 (QUIC)', maxLines: 1),
+                  ),
                   icon: Icon(Icons.flash_on, size: 16),
                 ),
                 ButtonSegment<MasqueProtocol>(
                   value: MasqueProtocol.h2,
-                  label: Text('MASQUE H2 (TCP)'),
+                  label: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('MASQUE H2 (TCP)', maxLines: 1),
+                  ),
                   icon: Icon(Icons.security, size: 16),
                 ),
               ],
@@ -657,7 +667,10 @@ class _MasqueScoutScreenState extends State<MasqueScoutScreen> {
                       controller.updateInput(_inputController.text);
                       Navigator.pop(context);
                     },
-                    child: const Text('Save'),
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('Save', maxLines: 1),
+                    ),
                   ),
                 ],
               ),
@@ -737,7 +750,10 @@ class _MasqueScoutScreenState extends State<MasqueScoutScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
+                  child: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('Cancel', maxLines: 1),
+                  ),
                 ),
                 FilledButton(
                   onPressed: () {
@@ -749,7 +765,10 @@ class _MasqueScoutScreenState extends State<MasqueScoutScreen> {
                     );
                     Navigator.pop(context);
                   },
-                  child: const Text('Save'),
+                  child: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('Save', maxLines: 1),
+                  ),
                 ),
               ],
             );

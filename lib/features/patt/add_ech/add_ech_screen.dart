@@ -189,11 +189,13 @@ class _AddEchScreenState extends State<AddEchScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Input Proxy Config or Share Link',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.primary,
+                Expanded(
+                  child: Text(
+                    'Input Proxy Config or Share Link',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary,
+                    ),
                   ),
                 ),
                 TextButton.icon(
@@ -202,7 +204,10 @@ class _AddEchScreenState extends State<AddEchScreen> {
                     controller.setInputText(_exampleVlessUrl);
                   },
                   icon: const Icon(Icons.lightbulb_outline, size: 16),
-                  label: const Text('Sample', style: TextStyle(fontSize: 12)),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('Sample', style: TextStyle(fontSize: 12), maxLines: 1),
+                  ),
                 ),
               ],
             ),
@@ -259,17 +264,22 @@ class _AddEchScreenState extends State<AddEchScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'ECH & TLS Settings',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.primary,
+                Expanded(
+                  child: Text(
+                    'ECH & TLS Settings',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.primary,
+                    ),
                   ),
                 ),
                 TextButton.icon(
                   onPressed: () => _syncControllersWithDefaults(controller),
                   icon: const Icon(Icons.restart_alt, size: 16),
-                  label: const Text('Reset', style: TextStyle(fontSize: 12)),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('Reset', style: TextStyle(fontSize: 12), maxLines: 1),
+                  ),
                 ),
               ],
             ),
@@ -307,13 +317,17 @@ class _AddEchScreenState extends State<AddEchScreen> {
 
             // Fingerprint Dropdown
             DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: controller.fingerprint,
               decoration: InputDecoration(
                 labelText: 'uTLS Fingerprint',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               ),
               items: kAvailableFingerprints.map((fp) {
-                return DropdownMenuItem(value: fp, child: Text(fp));
+                return DropdownMenuItem(
+                  value: fp,
+                  child: Text(fp, overflow: TextOverflow.ellipsis),
+                );
               }).toList(),
               onChanged: (val) {
                 if (val != null) controller.setFingerprint(val);
@@ -441,9 +455,15 @@ class _AddEchScreenState extends State<AddEchScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.enhanced_encryption),
-            label: Text(controller.isProcessing ? 'Generating...' : 'Add ECH & Generate JSON'),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                controller.isProcessing ? 'Generating...' : 'Add ECH & Generate JSON',
+                maxLines: 1,
+              ),
+            ),
             style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -457,9 +477,12 @@ class _AddEchScreenState extends State<AddEchScreen> {
             controller.clear();
           },
           icon: const Icon(Icons.clear_all),
-          label: const Text('Clear'),
+          label: const FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text('Clear', maxLines: 1),
+          ),
           style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -577,7 +600,10 @@ class _AddEchScreenState extends State<AddEchScreen> {
                     );
                   },
                   icon: const Icon(Icons.copy, size: 18),
-                  label: const Text('Copy'),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('Copy', maxLines: 1),
+                  ),
                 ),
               ],
             ),

@@ -59,6 +59,18 @@ class RdnbenetApp extends StatelessWidget {
             theme: AppTheme.lightTheme(usesDynamic ? lightDynamic : null),
             darkTheme: AppTheme.darkTheme(usesDynamic ? darkDynamic : null),
             themeMode: ThemeMode.system,
+            builder: (context, child) {
+              final mediaQuery = MediaQuery.of(context);
+              return MediaQuery(
+                data: mediaQuery.copyWith(
+                  textScaler: mediaQuery.textScaler.clamp(
+                    minScaleFactor: 0.85,
+                    maxScaleFactor: 1.35,
+                  ),
+                ),
+                child: child!,
+              );
+            },
             home: const HomeScreen(),
           );
         },

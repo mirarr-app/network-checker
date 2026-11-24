@@ -111,7 +111,10 @@ class DomainCheckerScreen extends StatelessWidget {
                     ? controller.stopChecking 
                     : controller.checkAll,
                 icon: Icon(controller.isChecking ? Icons.stop : Icons.play_arrow),
-                label: Text(controller.isChecking ? 'Stop' : 'Check All'),
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(controller.isChecking ? 'Stop' : 'Check All', maxLines: 1),
+                ),
               ).animate().fadeIn(delay: 100.ms).scale(delay: 100.ms),
             ],
           );
@@ -651,13 +654,17 @@ class DomainCheckerScreen extends StatelessWidget {
   Widget _buildMobileLayout(BuildContext context, DomainCheckerController controller) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossAxisCount = constraints.maxWidth < 400 ? 2 : 3;
+        final crossAxisCount = constraints.maxWidth < 480 ? 2 : (constraints.maxWidth < 720 ? 3 : 4);
+        final textScaler = MediaQuery.textScalerOf(context);
+        final itemHeight = textScaler.scale(92).clamp(92.0, 140.0);
+        final itemWidth = (constraints.maxWidth - 16 - (crossAxisCount - 1) * 8) / crossAxisCount;
+        final childAspectRatio = (itemWidth / itemHeight).clamp(1.1, 2.2);
         
         return GridView.builder(
           padding: const EdgeInsets.only(bottom: 80, top: 8, left: 8, right: 8),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
-            childAspectRatio: 1.4,
+            childAspectRatio: childAspectRatio,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
           ),
@@ -909,18 +916,20 @@ class _DomainGridItem extends StatelessWidget {
             children: [
               _buildStatusIcon(colorScheme, isEditMode),
               const SizedBox(height: 6),
-              Text(
-                domain.domain,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
+              Flexible(
+                child: Text(
+                  domain.domain,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
               if (domain.status == CheckStatus.success && domain.result?.responseTimeMs != null) ...[
-                const Spacer(),
+                const SizedBox(height: 4),
                 Text(
                   '${domain.result!.responseTimeMs}ms',
                   style: TextStyle(

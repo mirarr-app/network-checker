@@ -99,7 +99,10 @@ class _HomeScreenState extends State<HomeScreen> {
               }
             },
             icon: const Icon(Icons.open_in_new, size: 18),
-            label: const Text('Open releases'),
+            label: const FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text('Open releases', maxLines: 1),
+            ),
           ),
         ],
       ),
@@ -672,7 +675,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               children: [
                 SizedBox(
-                  width: 220,
+                  width: (220 * MediaQuery.textScalerOf(context).scale(1.0)).clamp(220.0, 270.0),
                   child: Container(
                     color: colorScheme.surfaceContainerLow,
                     child: Column(

@@ -200,16 +200,18 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
+                        Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          runSpacing: 4,
                           children: [
-                            Expanded(
-                              child: Text(
-                                'VLESS Share Link',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: colorScheme.onSurface,
-                                ),
+                            Text(
+                              'VLESS Share Link',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onSurface,
                               ),
                             ),
                             Wrap(
@@ -218,12 +220,18 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                                 TextButton.icon(
                                   onPressed: _pasteFromClipboard,
                                   icon: const Icon(Icons.content_paste_rounded, size: 16),
-                                  label: const Text('Paste'),
+                                  label: const FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text('Paste', maxLines: 1),
+                                  ),
                                 ),
                                 TextButton.icon(
                                   onPressed: _loadExample,
                                   icon: const Icon(Icons.lightbulb_outline_rounded, size: 16),
-                                  label: const Text('Example'),
+                                  label: const FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text('Example', maxLines: 1),
+                                  ),
                                 ),
                                 if (controller.inputText.isNotEmpty)
                                   IconButton(
@@ -267,13 +275,17 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                           icon: const Icon(Icons.auto_fix_high_rounded),
                           label: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Text(
-                              controller.isProcessing
-                                  ? 'Transforming...'
-                                  : 'Transform to Cloudflare Fix JSON',
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                controller.isProcessing
+                                    ? 'Transforming...'
+                                    : 'Transform to Cloudflare Fix JSON',
+                                maxLines: 1,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
@@ -391,12 +403,14 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(
-                                      'Xray Config JSON',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        color: colorScheme.primary,
+                                    Expanded(
+                                      child: Text(
+                                        'Xray Config JSON',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: colorScheme.primary,
+                                        ),
                                       ),
                                     ),
                                     FilledButton.icon(
@@ -405,7 +419,10 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                                         'Cloudflare Fix JSON',
                                       ),
                                       icon: const Icon(Icons.copy_rounded, size: 16),
-                                      label: const Text('Copy JSON'),
+                                      label: const FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text('Copy JSON', maxLines: 1),
+                                      ),
                                       style: FilledButton.styleFrom(
                                         visualDensity: VisualDensity.compact,
                                       ),
@@ -502,6 +519,7 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
 
                 if (isCompact) ...[
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: kAvailableFingerprints.contains(controller.fingerprint)
                         ? controller.fingerprint
                         : 'unsafe',
@@ -513,7 +531,7 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                     items: kAvailableFingerprints
                         .map((fp) => DropdownMenuItem(
                               value: fp,
-                              child: Text(fp),
+                              child: Text(fp, overflow: TextOverflow.ellipsis),
                             ))
                         .toList(),
                     onChanged: (val) {
@@ -536,6 +554,7 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
+                          isExpanded: true,
                           initialValue: kAvailableFingerprints.contains(controller.fingerprint)
                               ? controller.fingerprint
                               : 'unsafe',
@@ -547,7 +566,7 @@ class _CloudflareFixScreenState extends State<CloudflareFixScreen> {
                           items: kAvailableFingerprints
                               .map((fp) => DropdownMenuItem(
                                     value: fp,
-                                    child: Text(fp),
+                                    child: Text(fp, overflow: TextOverflow.ellipsis),
                                   ))
                               .toList(),
                           onChanged: (val) {
