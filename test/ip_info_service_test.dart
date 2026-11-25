@@ -354,6 +354,98 @@ void main() {
     });
   });
 
+  group('IpInfoService - intelligence fallbacks', () {
+    test('reads VPN and hosting flags from vpndetection when ip.net.coffee is down', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.host == 'ip.net.coffee') {
+          return http.Response('service unavailable', 503);
+        }
+        if (request.url.host == 'api.vpndetection.io') {
+          return http.Response(
+            jsonEncode({
+              'ip': '146.70.116.130',
+              'is_vpn': true,
+              'is_relay': false,
+              'is_tor': false,
+              'location': {'country': 'AT', 'country_name': 'Austria'},
+              'asn': {
+                'asn': 9009,
+                'name': 'M247 Europe SRL',
+                'type': 'hosting',
+              },
+              'hostname': '',
+            }),
+            200,
+          );
+        }
+        if (request.url.host == 'check.torproject.org') {
+          return http.Response('', 200);
+        }
+        return http.Response('not found', 404);
+      });
+
+      final result = await IpInfoService.checkIpPurity(
+        ip: '146.70.116.130',
+        client: client,
+      );
+
+      final proxyFactor = result.factors.firstWhere(
+        (f) => f.name == 'Known proxy / VPN',
+      );
+      expect(proxyFactor.passed, isFalse);
+      expect(proxyFactor.detail, contains('VPN exit'));
+      final dcFactor = result.factors.firstWhere(
+        (f) => f.name == 'Datacenter / hosting ASN',
+      );
+      expect(dcFactor.passed, isFalse);
+      expect(dcFactor.detail, contains('M247 Europe SRL'));
+    });
+
+    test('passes a residential address vpndetection does not flag', () async {
+      final client = MockHttpClient((request) async {
+        if (request.url.host == 'ip.net.coffee') {
+          return http.Response('service unavailable', 503);
+        }
+        if (request.url.host == 'api.vpndetection.io') {
+          return http.Response(
+            jsonEncode({
+              'ip': '203.0.113.7',
+              'is_vpn': false,
+              'is_relay': false,
+              'is_tor': false,
+              'location': {'country': 'DE', 'country_name': 'Germany'},
+              'asn': {
+                'asn': 3320,
+                'name': 'Deutsche Telekom AG',
+                'type': 'isp',
+              },
+              'hostname': 'p5b0a1c2d.dip0.t-ipconnect.de',
+            }),
+            200,
+          );
+        }
+        if (request.url.host == 'check.torproject.org') {
+          return http.Response('', 200);
+        }
+        return http.Response('not found', 404);
+      });
+
+      final result = await IpInfoService.checkIpPurity(
+        ip: '203.0.113.7',
+        client: client,
+      );
+
+      final proxyFactor = result.factors.firstWhere(
+        (f) => f.name == 'Known proxy / VPN',
+      );
+      expect(proxyFactor.passed, isTrue);
+      final dcFactor = result.factors.firstWhere(
+        (f) => f.name == 'Datacenter / hosting ASN',
+      );
+      expect(dcFactor.passed, isTrue);
+    });
+  });
+
   group('IpInfoService - checkIpLeak dual-stack & offline robustness', () {
     test('does not report leak for dual-stack IPv4 + IPv6 responses', () async {
       final client = MockHttpClient((request) async {

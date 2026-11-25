@@ -318,7 +318,8 @@ class IpInfoService {
   }
 
   /// Fetches rich IP intelligence from keyless public APIs.
-  /// Tries ip.net.coffee first, then falls back to ipwho.is and freeipapi.com.
+  /// Tries ip.net.coffee first, then falls back to api.vpndetection.io,
+  /// ipwho.is and freeipapi.com.
   static Future<Map<String, dynamic>?> _fetchIpIntelligence(
     String ip, {
     http.Client? client,
@@ -345,7 +346,44 @@ class IpInfoService {
         }
       } catch (_) {}
 
-      // 2. ipwho.is fallback (reliable, keyless HTTPS: returns ASN, org, isp, country, city)
+      // 2. api.vpndetection.io fallback (keyless HTTPS: VPN and privacy relay
+      //    flags, ASN, its type and the hostname). Its is_tor covers every Tor
+      //    relay, not only exits, so the Tor exit list stays the Tor signal.
+      try {
+        final response = await httpClient
+            .get(Uri.parse('https://api.vpndetection.io/$ip'))
+            .timeout(const Duration(seconds: 5));
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          if (data is Map<String, dynamic> && data['ip'] != null) {
+            final asn = data['asn'] is Map<String, dynamic>
+                ? data['asn'] as Map<String, dynamic>
+                : const <String, dynamic>{};
+            final location = data['location'] is Map<String, dynamic>
+                ? data['location'] as Map<String, dynamic>
+                : const <String, dynamic>{};
+            final asnNum = asn['asn']?.toString() ?? '';
+            final org = asn['name']?.toString() ?? '';
+            final hostname = data['hostname']?.toString() ?? '';
+            return {
+              'ip': data['ip']?.toString() ?? ip,
+              'is_datacenter': asn['type'] == 'hosting',
+              'is_vpn': data['is_vpn'] == true,
+              'is_proxy': data['is_relay'] == true,
+              'is_mobile': false,
+              'company_name': org,
+              'company_type': asn['type']?.toString() ?? 'isp',
+              'asOrganization': org,
+              'asn': asnNum.isNotEmpty ? 'AS$asnNum' : '',
+              'isp': org,
+              'country': location['country_name'] ?? location['country'],
+              if (hostname.isNotEmpty) 'rdns': hostname,
+            };
+          }
+        }
+      } catch (_) {}
+
+      // 3. ipwho.is fallback (reliable, keyless HTTPS: returns ASN, org, isp, country, city)
       try {
         final response = await httpClient
             .get(Uri.parse('https://ipwho.is/$ip'))
@@ -381,7 +419,7 @@ class IpInfoService {
         }
       } catch (_) {}
 
-      // 3. freeipapi.com fallback
+      // 4. freeipapi.com fallback
       try {
         final response = await httpClient
             .get(Uri.parse('https://freeipapi.com/api/json/$ip'))
